@@ -61,6 +61,6 @@ public:
     int number;
 
     void dump() const override {
-        std::cout << "Stmt { " + to_string(number) + " } ";
+        std::cout << "Stmt { " + std::to_string(number) + " } ";
     }
 };

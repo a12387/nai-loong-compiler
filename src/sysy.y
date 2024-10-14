@@ -100,7 +100,7 @@ Block
 Stmt
   : RETURN Number ';' {
     auto ast = new StmtAST();
-    ast->number = $2
+    ast->number = $2;
     $$ = ast;
   }
   ;
