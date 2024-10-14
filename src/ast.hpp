@@ -1,58 +1,81 @@
 #pragma once
 #include <iostream>
+#include <fstream>
 #include <memory>
+
+using namespace std;
 
 class BaseAST {
 public:
     virtual ~BaseAST() = default;
     virtual void dump() const = 0;
+    virtual void toKoopa(ofstream &out) const = 0;
 };
 
 class CompUnitAST : public BaseAST {
 public:
-    // 用智能指针管理对象
-    std::unique_ptr<BaseAST> func_def;
+    unique_ptr<BaseAST> func_def;
 
     void dump() const override {
-        std::cout << "CompUnit { ";
+        cout << "CompUnit { ";
         func_def->dump();
-        std::cout << " } ";
+        cout << " } ";
+    }
+
+    void toKoopa(ofstream &out) const override {
+        func_def->toKoopa(out);
     }
 };
 
-// FuncDef 也是 BaseAST
 class FuncDefAST : public BaseAST {
 public:
-    std::unique_ptr<BaseAST> func_type;
-    std::string ident;
-    std::unique_ptr<BaseAST> block;
+    unique_ptr<BaseAST> func_type;
+    string ident;
+    unique_ptr<BaseAST> block;
 
     void dump() const override {
-        std::cout << "FuncDef { ";
+        cout << "FuncDef { ";
         func_type->dump();
-        std::cout << "," + ident + ",";
+        cout << "," + ident + ",";
         block->dump();
-        std::cout << " } ";
+        cout << " } ";
+    }
+
+    void toKoopa(ofstream &out) const override {
+        out << "fun @" + ident + "(): ";
+        func_type->toKoopa(out);
+        block->toKoopa(out);
     }
 };
 
 class FuncTypeAST : public BaseAST {
 public:
-    std::string type;
+    string type;
 
     void dump() const override {
-        std::cout << "FuncType { " + type + " } ";
+        cout << "FuncType { " + type + " } ";
+    }
+
+    void toKoopa(ofstream &out) const override {
+        if(type == "int")
+            out << "i32 ";
     }
 };
 
 class BlockAST : public BaseAST {
 public:
-    std::unique_ptr<BaseAST> stmt;
+    unique_ptr<BaseAST> stmt;
 
     void dump() const override {
-        std::cout << "Block { ";
+        cout << "Block { ";
         stmt->dump();
-        std::cout << " } ";
+        cout << " } ";
+    }
+
+    void toKoopa(ofstream &out) const override {
+        out << "{\n%entry:\n";
+        stmt->toKoopa(out);
+        out << "}";
     }
 };
 
@@ -61,6 +84,10 @@ public:
     int number;
 
     void dump() const override {
-        std::cout << "Stmt { " + std::to_string(number) + " } ";
+        cout << "Stmt { " + to_string(number) + " } ";
+    }
+
+    void toKoopa(ofstream &out) const override {
+        out << "    ret " << number << endl;
     }
 };
