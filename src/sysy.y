@@ -99,8 +99,6 @@ Block
 
 Stmt
   : RETURN Number ';' {
-    // auto number = unique_ptr<string>($2);
-    // $$ = new string("return " + *number + ";");
     auto ast = new StmtAST();
     ast->number = $2
     $$ = ast;
