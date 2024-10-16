@@ -3,3 +3,5 @@
 /.vscode
 *.c
 *.koopa
+*.o
+koopa.h

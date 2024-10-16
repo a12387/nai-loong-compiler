@@ -9,7 +9,7 @@ class BaseAST {
 public:
     virtual ~BaseAST() = default;
     virtual void dump() const = 0;
-    virtual void toKoopa(ofstream &out) const = 0;
+    virtual void toKoopa(string &out) const = 0;
 };
 
 class CompUnitAST : public BaseAST {
@@ -22,7 +22,7 @@ public:
         cout << " } ";
     }
 
-    void toKoopa(ofstream &out) const override {
+    void toKoopa(string &out) const override {
         func_def->toKoopa(out);
     }
 };
@@ -41,8 +41,8 @@ public:
         cout << " } ";
     }
 
-    void toKoopa(ofstream &out) const override {
-        out << "fun @" + ident + "(): ";
+    void toKoopa(string &out) const override {
+        out += "fun @" + ident + "(): ";
         func_type->toKoopa(out);
         block->toKoopa(out);
     }
@@ -56,9 +56,9 @@ public:
         cout << "FuncType { " + type + " } ";
     }
 
-    void toKoopa(ofstream &out) const override {
+    void toKoopa(string &out) const override {
         if(type == "int")
-            out << "i32 ";
+            out += "i32 ";
     }
 };
 
@@ -72,10 +72,10 @@ public:
         cout << " } ";
     }
 
-    void toKoopa(ofstream &out) const override {
-        out << "{\n%entry:\n";
+    void toKoopa(string &out) const override {
+        out += "{\n%entry:\n";
         stmt->toKoopa(out);
-        out << "}";
+        out += "}";
     }
 };
 
@@ -87,7 +87,7 @@ public:
         cout << "Stmt { " + to_string(number) + " } ";
     }
 
-    void toKoopa(ofstream &out) const override {
-        out << "    ret " << number << endl;
+    void toKoopa(string &out) const override {
+        out += "    ret " + to_string(number) + "\n";
     }
 };
