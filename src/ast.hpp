@@ -2,7 +2,7 @@
 #include <iostream>
 #include <fstream>
 #include <memory>
-
+#include <cassert>
 using namespace std;
 
 class BaseAST {
@@ -19,7 +19,7 @@ public:
     void dump() const override {
         cout << "CompUnit { ";
         func_def->dump();
-        cout << " } ";
+        cout << " } \n";
     }
 
     void toKoopa(string &out) const override {
@@ -81,13 +81,106 @@ public:
 
 class StmtAST : public BaseAST {
 public:
-    int number;
+    unique_ptr<BaseAST> exp;
 
     void dump() const override {
-        cout << "Stmt { " + to_string(number) + " } ";
+        cout << "Stmt { ";
+        exp->dump();
+        cout << " } ";
     }
 
     void toKoopa(string &out) const override {
-        out += "    ret " + to_string(number) + "\n";
+        out += "    ret ";
+        string s = "";
+        exp->toKoopa(s);
+        out += s;
+        out += "\n";
+    }
+};
+
+class ExpAST : public BaseAST {
+public:
+    unique_ptr<BaseAST> unaryExp;
+
+    void dump() const override {
+        cout << "Exp { ";
+        unaryExp->dump();
+        cout << " } ";
+    }
+
+    void toKoopa(string &out) const override {
+        unaryExp->toKoopa(out);
+    }
+};
+
+class PrimaryExpAST1 : public BaseAST {
+public:
+    unique_ptr<BaseAST> exp;
+
+    void dump() const override {
+        cout << "PrimaryExp { ";
+        exp->dump();
+        cout << " } ";
+    }
+    void toKoopa(string &out) const override {
+        exp->toKoopa(out);
+    }
+};
+
+class PrimaryExpAST2: public BaseAST {
+public:
+    int num;
+    void dump() const override {
+        cout << "Primary { ";
+        cout << num;
+        cout << " } ";
+    }
+    void toKoopa(string &out) const override {
+        out = to_string(num);
+    }
+};
+
+class UnaryExpAST1 : public BaseAST {
+public:
+    unique_ptr<BaseAST> primaryExp;
+
+    void dump() const override {
+        cout << "UnaryExp { ";
+        primaryExp->dump();
+        cout << " } ";
+    }
+    void toKoopa(string &out) const override {
+        primaryExp->toKoopa(out);
+    }
+};
+
+class UnaryExpAST2 : public BaseAST {
+public:
+    string unaryOp;
+    unique_ptr<BaseAST> unaryExp;
+
+    void dump() const override {
+        cout << "UnaryExp { ";
+        cout << "\'" + unaryOp + "\' ";
+        unaryExp->dump();
+        cout << " } ";
+    }
+    void toKoopa(string &out) const override {
+        unaryExp->toKoopa(out);
+        int num;
+        sscanf(out.c_str(),"%d",&num);
+        switch(unaryOp[0]) {
+        case '+':
+            out = to_string(num);
+            break;
+        case '-':
+            out = to_string(-num);
+            break;
+        case '!':
+            out = to_string(!num);
+            break;
+        default:
+            assert(false);
+        }
     }
 };

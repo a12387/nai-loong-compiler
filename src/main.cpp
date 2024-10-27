@@ -31,6 +31,8 @@ int main(int argc, const char *argv[])
     assert(!ret);
 
     string s = "";
+    
+    ast->dump();
     ast->toKoopa(s);
 
     if(mode[1] == 'k') {
