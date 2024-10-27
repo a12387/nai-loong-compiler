@@ -104,7 +104,7 @@ public:
             out += "    ret " + s;
         }
         out += "\n";
-        
+
         variable_counter = 0;
         assert(unaryOpStack.empty());
         
@@ -219,5 +219,56 @@ public:
             assert(false);
         }
         unaryOpStack.pop();
+    }
+};
+
+class MulExpAST1 : public BaseAST {
+public:
+    unique_ptr<BaseAST> unaryExp;
+
+    void dump() const override {
+
+    }
+    void toKoopa(string &out) const override {
+
+    }
+};
+
+class MulExpAST2 : public BaseAST {
+public:
+    unique_ptr<BaseAST> MulExp;
+    string mulOp;
+    unique_ptr<BaseAST> unaryExp;
+
+    void dump() const override {
+
+    }
+    void toKoopa(string &out) const override {
+        
+    }
+};
+
+class AddExpAST1 : public BaseAST {
+public:
+    unique_ptr<BaseAST> mulExp;
+
+    void dump() const override {
+
+    }
+    void toKoopa(string &out) const override {
+        
+    }
+};
+
+class AddExpAST2 : public BaseAST {
+    unique_ptr<BaseAST> addExp;
+    string addOp;
+    unique_ptr<BaseAST> mulExp;
+
+    void dump() const override {
+
+    }
+    void toKoopa(string &out) const override {
+        
     }
 };

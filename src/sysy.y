@@ -42,7 +42,7 @@ using namespace std;
 %token <int_val> INT_CONST
 
 // 非终结符的类型定义
-%type <ast_val> FuncDef FuncType Block Stmt Exp PrimaryExp UnaryExp
+%type <ast_val> FuncDef FuncType Block Stmt Exp PrimaryExp UnaryExp AddExp MulExp
 %type <int_val> Number
 %type <str_val> UnaryOp
 
@@ -107,7 +107,7 @@ Stmt
   ;
 
 Exp
-  : UnaryExp {
+  : AddExp {
     auto ast = new ExpAST();
     ast->unaryExp = unique_ptr<BaseAST>($1);
     $$ = ast;
@@ -159,6 +159,17 @@ UnaryOp
   }
   ;
 
+MulExp
+  : UnaryExp {
+    auto ast = new MulExpAST1();
+    ast->unaryExp = unique_ptr<BaseAST>($1);
+    $$ = ast;
+  }
+  | MulExp ('*' | '/' | '%') UnaryExp {
+    auto ast = new MulExpAST2();
+    ast->MulExp = unique_ptr<BaseAST>($1);
+    ast->mulOp = string($2);
+  }
 %%
 
 // 定义错误处理函数, 其中第二个参数是错误信息
