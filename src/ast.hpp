@@ -94,10 +94,17 @@ public:
     }
 
     void toKoopa(string &out) const override {
-        exp->toKoopa(out);
-        out += "    ret %" + to_string(variable_counter - 1);
+        string s = "";
+        exp->toKoopa(s);
+        if(variable_counter != 0) {
+            out += s;
+            out += "    ret %" + to_string(variable_counter - 1);
+        }
+        else {
+            out += "    ret " + s;
+        }
         out += "\n";
-
+        
         variable_counter = 0;
         assert(unaryOpStack.empty());
         
@@ -145,11 +152,12 @@ public:
         while(!unaryOpStack.empty() && unaryOpStack.top() == '+') {
             unaryOpStack.pop();
         }
-        out += "    %" + to_string(variable_counter++) + "= "; 
+        
         if(unaryOpStack.empty()) {
-            out += to_string(num) + "\n";
+            out += to_string(num);
             return;
         }
+        out += "    %" + to_string(variable_counter++) + " = "; 
         switch(unaryOpStack.top()) {
         case '-':
             out += "sub 0, " + to_string(num) + "\n";
