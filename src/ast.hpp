@@ -3,7 +3,11 @@
 #include <fstream>
 #include <memory>
 #include <cassert>
+#include <stack>
 using namespace std;
+
+static int variable_counter = 0;
+static stack<char> unaryOpStack;
 
 class BaseAST {
 public:
@@ -90,11 +94,13 @@ public:
     }
 
     void toKoopa(string &out) const override {
-        out += "    ret ";
-        string s = "";
-        exp->toKoopa(s);
-        out += s;
+        exp->toKoopa(out);
+        out += "    ret %" + to_string(variable_counter - 1);
         out += "\n";
+
+        variable_counter = 0;
+        assert(unaryOpStack.empty());
+        
     }
 };
 
@@ -118,7 +124,7 @@ public:
     unique_ptr<BaseAST> exp;
 
     void dump() const override {
-        cout << "PrimaryExp { ";
+        cout << "PrimaryExp1 { ";
         exp->dump();
         cout << " } ";
     }
@@ -131,12 +137,30 @@ class PrimaryExpAST2: public BaseAST {
 public:
     int num;
     void dump() const override {
-        cout << "Primary { ";
+        cout << "PrimaryExp2 { ";
         cout << num;
         cout << " } ";
     }
     void toKoopa(string &out) const override {
-        out = to_string(num);
+        while(!unaryOpStack.empty() && unaryOpStack.top() == '+') {
+            unaryOpStack.pop();
+        }
+        out += "    %" + to_string(variable_counter++) + "= "; 
+        if(unaryOpStack.empty()) {
+            out += to_string(num) + "\n";
+            return;
+        }
+        switch(unaryOpStack.top()) {
+        case '-':
+            out += "sub 0, " + to_string(num) + "\n";
+            break;
+        case '!':
+            out += "eq " + to_string(num) + ", 0\n";
+            break;
+        default:
+            assert(false);
+        }
+        unaryOpStack.pop();
     }
 };
 
@@ -145,7 +169,7 @@ public:
     unique_ptr<BaseAST> primaryExp;
 
     void dump() const override {
-        cout << "UnaryExp { ";
+        cout << "UnaryExp1 { ";
         primaryExp->dump();
         cout << " } ";
     }
@@ -160,27 +184,32 @@ public:
     unique_ptr<BaseAST> unaryExp;
 
     void dump() const override {
-        cout << "UnaryExp { ";
+        cout << "UnaryExp2 { ";
         cout << "\'" + unaryOp + "\' ";
         unaryExp->dump();
         cout << " } ";
     }
     void toKoopa(string &out) const override {
+        unaryOpStack.push(unaryOp[0]);
         unaryExp->toKoopa(out);
-        int num;
-        sscanf(out.c_str(),"%d",&num);
-        switch(unaryOp[0]) {
-        case '+':
-            out = to_string(num);
-            break;
+        while(!unaryOpStack.empty() && unaryOpStack.top() == '+') {
+            unaryOpStack.pop();
+        }
+        if(unaryOpStack.empty()) {
+            return;
+        }
+        switch(unaryOpStack.top()) {
         case '-':
-            out = to_string(-num);
+            out += "    %" + to_string(variable_counter) + " = sub 0, %" + to_string(variable_counter - 1) + "\n";
+            variable_counter++;
             break;
         case '!':
-            out = to_string(!num);
+            out += "    %" + to_string(variable_counter) + " = eq %" + to_string(variable_counter - 1) + ", 0\n";
+            variable_counter++;
             break;
         default:
             assert(false);
         }
+        unaryOpStack.pop();
     }
 };
