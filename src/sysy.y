@@ -42,9 +42,9 @@ using namespace std;
 %token <int_val> INT_CONST
 
 // 非终结符的类型定义
-%type <ast_val> FuncDef FuncType Block Stmt Exp PrimaryExp UnaryExp AddExp MulExp
+%type <ast_val> FuncDef FuncType Block Stmt Exp PrimaryExp UnaryExp AddExp MulExp RelExp EqExp LAndExp LOrExp
 %type <int_val> Number
-%type <str_val> UnaryOp MulOp AddOp
+%type <str_val> UnaryOp MulOp AddOp RelOp EqOp
 
 %%
 
@@ -107,9 +107,9 @@ Stmt
   ;
 
 Exp
-  : AddExp {
+  : LOrExp {
     auto ast = new ExpAST();
-    ast->addExp = unique_ptr<BaseAST>($1);
+    ast->lOrExp = unique_ptr<BaseAST>($1);
     $$ = ast;
   }
   ;
@@ -207,6 +207,88 @@ AddOp
   }
   | '-' {
     $$ = new string("-");
+  }
+  ;
+
+RelExp
+  : AddExp {
+    auto ast = new RelExpAST1();
+    ast->addExp = unique_ptr<BaseAST>($1);
+    $$ = $1;
+  }
+  | RelExp RelOp AddExp {
+    auto ast = new RelExpAST2();
+    ast->relExp = unique_ptr<BaseAST>($1);
+    ast->relOp = *unique_ptr<string>($2);
+    ast->addExp = unique_ptr<BaseAST>($3);
+    $$ = ast;
+  }
+  ;
+
+RelOp
+  : '<' {
+    $$ = new string("<");
+  }
+  | '>' {
+    $$ = new string(">");
+  }
+  | "<=" {
+    $$ = new string("<=");
+  }
+  | ">=" {
+    $$ = new string(">=");
+  }
+  ;
+
+EqExp
+  : RelExp {
+    auto ast = new EqExpAST1();
+    ast->relExp = unique_ptr<BaseAST>($1);
+    $$ = ast;
+  }
+  | EqExp EqOp RelExp {
+    auto ast = new EqExpAST2();
+    ast->eqExp = unique_ptr<BaseAST>($1);
+    ast->eqOp = *unique_ptr<string>($2);
+    ast->relExp = unique_ptr<BaseAST>($3);
+    $$ = ast;
+  }
+  ;
+
+EqOp
+  : "==" {
+    $$ = new string("==");
+  }
+  | "!=" {
+    $$ = new string("!=");
+  }
+  ;
+
+LAndExp 
+  : EqExp {
+    auto ast = new LAndExpAST1();
+    ast->eqExp = unique_ptr<BaseAST>($1);
+    $$ = ast;
+  }
+  | LAndExp "&&" EqExp {
+    auto ast = new LAndExpAST2();
+    ast->lAndExp = unique_ptr<BaseAST>($1);
+    ast->eqExp = unique_ptr<BaseAST>($3);
+    $$ = ast;
+  }
+  ;
+
+LOrExp
+  : LAndExp {
+    auto ast = new LOrExpAST1();
+    ast->lAndExp = unique_ptr<BaseAST>($1);
+    $$ = ast;
+  }
+  | LOrExp "||" LAndExp {
+    auto ast = new LOrExpAST2();
+    ast->lOrExp = unique_ptr<BaseAST>($1);
+    ast->lAndExp = unique_ptr<BaseAST>($3);
+    $$ = ast;
   }
   ;
 

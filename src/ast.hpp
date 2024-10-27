@@ -113,16 +113,16 @@ public:
 
 class ExpAST : public BaseAST {
 public:
-    unique_ptr<BaseAST> addExp;
+    unique_ptr<BaseAST> lOrExp;
 
     void dump() const override {
         cout << "Exp { ";
-        addExp->dump();
+        lOrExp->dump();
         cout << " } ";
     }
 
     void toKoopa(string &out) const override {
-        addExp->toKoopa(out);
+        lOrExp->toKoopa(out);
     }
 };
 
@@ -362,5 +362,131 @@ public:
             out1 += "%" + to_string(v2);
         }
         out += out1 + "\n";
+    }
+};
+
+class RelExpAST1 : public BaseAST {
+public:
+    unique_ptr<BaseAST> addExp;
+
+    void dump() const override {
+        cout << "RelExp1 { ";
+        addExp->dump();
+        cout << " } ";
+    }
+    void toKoopa(string &out) const override {
+
+    }
+};
+
+class RelExpAST2 : public BaseAST {
+public:
+    unique_ptr<BaseAST> relExp;
+    string relOp;
+    unique_ptr<BaseAST> addExp;
+    
+    void dump() const override {
+        cout << "RelExp2 { ";
+        addExp->dump();
+        cout << " " << relOp << " ";
+        addExp->dump();
+        cout << " } ";
+    }
+    void toKoopa(string &out) const override {
+
+    }
+};
+
+class EqExpAST1 : public BaseAST {
+public:
+    unique_ptr<BaseAST> relExp;
+
+    void dump() const override {
+        cout << "EqExp1 { ";
+        relExp->dump();
+        cout << " } ";
+    }
+    void toKoopa(string &out) const override {
+
+    }
+};
+
+class EqExpAST2 : public BaseAST {
+public:
+    unique_ptr<BaseAST> eqExp;
+    string eqOp;
+    unique_ptr<BaseAST> relExp;
+
+    void dump() const override {
+        cout << "EqExp2 { ";
+        eqExp->dump();
+        cout << " " << eqOp << " ";
+        relExp->dump();
+        cout << " } ";
+    }
+    void toKoopa(string &out) const override {
+
+    }
+};
+
+class LAndExpAST1 : public BaseAST {
+public:
+    unique_ptr<BaseAST> eqExp;
+
+    void dump() const override {
+        cout << "LAndExp1 { ";
+        eqExp->dump();
+        cout << " } ";
+    }
+    void toKoopa(string &out) const override {
+
+    }
+};
+
+class LAndExpAST2 : public BaseAST {
+public:
+    unique_ptr<BaseAST> lAndExp;
+    unique_ptr<BaseAST> eqExp;
+
+    void dump() const override {
+        cout << "LAndExp2 { ";
+        lAndExp->dump();
+        cout << " && ";
+        eqExp->dump();
+        cout << " } ";
+    }
+    void toKoopa(string &out) const override {
+
+    }
+};
+
+class LOrExpAST1 : public BaseAST {
+public:
+    unique_ptr<BaseAST> lAndExp;
+
+    void dump() const override {
+        cout << "LOrExp1 { ";
+        lAndExp->dump();
+        cout << " } ";
+    }
+    void toKoopa(string &out) const override {
+
+    }
+};
+
+class LOrExpAST2 : public BaseAST {
+public:
+    unique_ptr<BaseAST> lOrExp;
+    unique_ptr<BaseAST> lAndExp;
+
+    void dump() const override {
+        cout << "LOrExp2 { ";
+        lOrExp->dump();
+        cout << " || ";
+        lAndExp->dump();
+        cout << " } ";
+    }
+    void toKoopa(string &out) const override {
+
     }
 };
