@@ -113,16 +113,16 @@ public:
 
 class ExpAST : public BaseAST {
 public:
-    unique_ptr<BaseAST> unaryExp;
+    unique_ptr<BaseAST> addExp;
 
     void dump() const override {
         cout << "Exp { ";
-        unaryExp->dump();
+        addExp->dump();
         cout << " } ";
     }
 
     void toKoopa(string &out) const override {
-        unaryExp->toKoopa(out);
+        addExp->toKoopa(out);
     }
 };
 
@@ -227,21 +227,27 @@ public:
     unique_ptr<BaseAST> unaryExp;
 
     void dump() const override {
-
+        cout << "MulExp1 { ";
+        unaryExp->dump();
+        cout << " } ";
     }
     void toKoopa(string &out) const override {
-
+        unaryExp->toKoopa(out);
     }
 };
 
 class MulExpAST2 : public BaseAST {
 public:
-    unique_ptr<BaseAST> MulExp;
+    unique_ptr<BaseAST> mulExp;
     string mulOp;
     unique_ptr<BaseAST> unaryExp;
 
     void dump() const override {
-
+        cout << "MulExp2 { ";
+        mulExp->dump();
+        cout << " " << mulOp << " ";
+        unaryExp->dump();
+        cout << " } ";
     }
     void toKoopa(string &out) const override {
         
@@ -253,7 +259,9 @@ public:
     unique_ptr<BaseAST> mulExp;
 
     void dump() const override {
-
+        cout << "AddExp1 { ";
+        mulExp->dump();
+        cout << " } ";
     }
     void toKoopa(string &out) const override {
         
@@ -261,12 +269,17 @@ public:
 };
 
 class AddExpAST2 : public BaseAST {
+public:
     unique_ptr<BaseAST> addExp;
     string addOp;
     unique_ptr<BaseAST> mulExp;
 
     void dump() const override {
-
+        cout << "AddExp2 { ";
+        addExp->dump();
+        cout << " " << addOp << " ";
+        mulExp->dump();
+        cout << " } ";
     }
     void toKoopa(string &out) const override {
         
