@@ -4,4 +4,7 @@
 *.c
 *.koopa
 *.o
+*.exe
 koopa.h
+/.devcontainer
+.dockerignore

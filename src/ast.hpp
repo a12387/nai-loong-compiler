@@ -375,7 +375,7 @@ public:
         cout << " } ";
     }
     void toKoopa(string &out) const override {
-
+        addExp->toKoopa(out);
     }
 };
 
@@ -407,7 +407,7 @@ public:
         cout << " } ";
     }
     void toKoopa(string &out) const override {
-
+        relExp->toKoopa(out);
     }
 };
 
@@ -439,7 +439,7 @@ public:
         cout << " } ";
     }
     void toKoopa(string &out) const override {
-
+        eqExp->toKoopa(out);
     }
 };
 
@@ -470,7 +470,7 @@ public:
         cout << " } ";
     }
     void toKoopa(string &out) const override {
-
+        lAndExp->toKoopa(out);
     }
 };
 
