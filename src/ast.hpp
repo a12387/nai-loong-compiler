@@ -393,7 +393,50 @@ public:
         cout << " } ";
     }
     void toKoopa(string &out) const override {
+        int v0 = variable_counter - 1;
 
+        string s1 = "";
+        relExp->toKoopa(s1);
+        int v1 = variable_counter - 1;
+
+        string s2 = "";
+        addExp->toKoopa(s2);
+        int v2 = variable_counter - 1;
+
+        string out1 = "";
+        out1 += "    %" + to_string(variable_counter++) + " = ";
+        if(relOp == "<") {
+            out1 += "lt ";
+        }
+        else if (relOp == ">") {
+            out1 += "gt ";
+        }
+        else if(relOp == "<=") {
+            out1 += "le ";
+        }
+        else if(relOp == ">=") {
+            out1 += "ge ";
+        }
+        else {
+            assert(false);
+        }
+        
+        if(v1 == v0) {
+            out1 += s1;
+        }
+        else {
+            out += s1;
+            out1 += "%" + to_string(v1);
+        }
+        out1 += ", ";
+        if(v2 == v1) {
+            out1 += s2;
+        }
+        else {
+            out += s2;
+            out1 += "%" + to_string(v2);
+        }
+        out += out1 + "\n";
     }
 };
 
@@ -425,7 +468,45 @@ public:
         cout << " } ";
     }
     void toKoopa(string &out) const override {
+        int v0 = variable_counter - 1;
 
+        string s1 = "";
+        eqExp->toKoopa(s1);
+        int v1 = variable_counter - 1;
+
+        string s2 = "";
+        relExp->toKoopa(s2);
+        int v2 = variable_counter - 1;
+
+        string out1 = "";
+        out1 += "    %" + to_string(variable_counter++) + " = ";
+        switch(eqOp[0]) {
+        case '=':
+            out1 += "eq ";
+            break;
+        case '!':
+            out1 += "ne ";
+            break;
+        default:
+            assert(false);
+        }
+        
+        if(v1 == v0) {
+            out1 += s1;
+        }
+        else {
+            out += s1;
+            out1 += "%" + to_string(v1);
+        }
+        out1 += ", ";
+        if(v2 == v1) {
+            out1 += s2;
+        }
+        else {
+            out += s2;
+            out1 += "%" + to_string(v2);
+        }
+        out += out1 + "\n";
     }
 };
 
@@ -456,7 +537,34 @@ public:
         cout << " } ";
     }
     void toKoopa(string &out) const override {
+        int v0 = variable_counter - 1;
 
+        string s1 = "";
+        lAndExp->toKoopa(s1);
+        if(variable_counter == v0 + 1) {
+            out += "    %" + to_string(variable_counter++) + " = ne 0, " + s1 + "\n";
+        }
+        else {
+            out += s1;
+            out += "    %" + to_string(variable_counter) + " = ne 0, %" + to_string(variable_counter - 1);
+            variable_counter++;
+        }
+        int v1 = variable_counter - 1;
+        
+
+        string s2 = "";
+        eqExp->toKoopa(s2);
+        if(variable_counter == v1 + 1) {
+            out += "    %" + to_string(variable_counter++) + " = ne 0, " + s2 + "\n";
+        }
+        else {
+            out += s2;
+            out += "    %" + to_string(variable_counter) + " = ne 0, %" + to_string(variable_counter - 1) + "\n";
+            variable_counter++;
+        }
+        int v2 = variable_counter - 1;
+        
+        out += "    %" + to_string(variable_counter++) + " = and %" + to_string(v1) + ", %" + to_string(v2) + "\n";
     }
 };
 
@@ -487,6 +595,37 @@ public:
         cout << " } ";
     }
     void toKoopa(string &out) const override {
+        int v0 = variable_counter - 1;
 
+        string s1 = "";
+        lOrExp->toKoopa(s1);
+        int v1 = variable_counter - 1;
+
+        string s2 = "";
+        lAndExp->toKoopa(s2);
+        int v2 = variable_counter - 1;
+
+        string out1 = "";
+        out1 += "    %" + to_string(variable_counter++) + " = or ";
+        
+        
+        if(v1 == v0) {
+            out1 += s1;
+        }
+        else {
+            out += s1;
+            out1 += "%" + to_string(v1);
+        }
+        out1 += ", ";
+        if(v2 == v1) {
+            out1 += s2;
+        }
+        else {
+            out += s2;
+            out1 += "%" + to_string(v2);
+        }
+        out += out1 + "\n";
+        out += "    %" +to_string(variable_counter) + " = ne 0, %" + to_string(variable_counter - 1) + "\n";
+        variable_counter++;
     }
 };

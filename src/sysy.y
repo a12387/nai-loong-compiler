@@ -232,10 +232,10 @@ RelOp
   | '>' {
     $$ = new string(">");
   }
-  | "<=" {
+  | '<' '=' {
     $$ = new string("<=");
   }
-  | ">=" {
+  | '>' '=' {
     $$ = new string(">=");
   }
   ;
@@ -256,10 +256,10 @@ EqExp
   ;
 
 EqOp
-  : "==" {
+  : '=' '=' {
     $$ = new string("==");
   }
-  | "!=" {
+  | '!' '=' {
     $$ = new string("!=");
   }
   ;
@@ -270,10 +270,10 @@ LAndExp
     ast->eqExp = unique_ptr<BaseAST>($1);
     $$ = ast;
   }
-  | LAndExp "&&" EqExp {
+  | LAndExp '&' '&' EqExp {
     auto ast = new LAndExpAST2();
     ast->lAndExp = unique_ptr<BaseAST>($1);
-    ast->eqExp = unique_ptr<BaseAST>($3);
+    ast->eqExp = unique_ptr<BaseAST>($4);
     $$ = ast;
   }
   ;
@@ -284,10 +284,10 @@ LOrExp
     ast->lAndExp = unique_ptr<BaseAST>($1);
     $$ = ast;
   }
-  | LOrExp "||" LAndExp {
+  | LOrExp '|' '|' LAndExp {
     auto ast = new LOrExpAST2();
     ast->lOrExp = unique_ptr<BaseAST>($1);
-    ast->lAndExp = unique_ptr<BaseAST>($3);
+    ast->lAndExp = unique_ptr<BaseAST>($4);
     $$ = ast;
   }
   ;
