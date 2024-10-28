@@ -49,6 +49,9 @@ int main(int argc, const char *argv[])
         koopa_raw_program_t raw = koopa_build_raw_program(builder, program);
         koopa_delete_program(program);
 
+        koopa_generate_raw_to_koopa(&raw, &program);
+        koopa_dump_to_stdout(program);
+
         ofstream out(output, ios::out | ios::trunc);
         assert(out.is_open());
         visit(out, raw);

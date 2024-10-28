@@ -8,3 +8,4 @@
 koopa.h
 /.devcontainer
 .dockerignore
+*.sh
