@@ -77,7 +77,7 @@ public:
     void* toKoopa() const override {
         auto raw = new koopa_raw_function_data_t;
 
-        raw->name = ident.c_str();
+        raw->name = ("@"+ident).c_str();
         raw->params = {
             nullptr,
             0,
