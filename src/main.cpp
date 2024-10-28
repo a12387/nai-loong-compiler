@@ -32,14 +32,15 @@ int main(int argc, const char *argv[])
 
     string s = "";
     
-    ast->dump();
-    ast->toKoopa(s);
+    //ast->dump();
+    auto raw = ast->toKoopa();
 
     if(mode[1] == 'k') {
-        ofstream out(output, ios::out | ios::trunc);
-        assert(out.is_open());
-        out << s;
-        out.close();
+        koopa_program_t program;
+        auto ret = koopa_generate_raw_to_koopa((koopa_raw_program_t *)raw, &program);
+        assert(ret == KOOPA_EC_SUCCESS);
+        koopa_dump_to_stdout(program);
+        
     }
     else {
         koopa_program_t program;

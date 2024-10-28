@@ -4,16 +4,33 @@
 #include <memory>
 #include <cassert>
 #include <stack>
+#include <unordered_map>
+#include <koopa.h>
 using namespace std;
 
-static int variable_counter = 0;
-static stack<char> unaryOpStack;
+static unordered_map<string, koopa_raw_binary_op_t> op_map = {
+    {"+", KOOPA_RBO_ADD},
+    {"-", KOOPA_RBO_SUB},
+    {"*", KOOPA_RBO_MUL},
+    {"/", KOOPA_RBO_DIV},
+    {"%", KOOPA_RBO_MOD},
+    {"!", KOOPA_RBO_NOT_EQ},
+    {"<", KOOPA_RBO_LT},
+    {">", KOOPA_RBO_GT},
+    {"<=", KOOPA_RBO_LE},
+    {">=", KOOPA_RBO_GE},
+    {"==", KOOPA_RBO_EQ},
+    {"!=", KOOPA_RBO_NOT_EQ},
+    {"&&", KOOPA_RBO_AND},
+    {"||", KOOPA_RBO_OR}
+};
+
 
 class BaseAST {
 public:
     virtual ~BaseAST() = default;
     virtual void dump() const = 0;
-    virtual void toKoopa(string &out) const = 0;
+    virtual void* toKoopa() const = 0;
 };
 
 class CompUnitAST : public BaseAST {
@@ -26,8 +43,20 @@ public:
         cout << " } \n";
     }
 
-    void toKoopa(string &out) const override {
-        func_def->toKoopa(out);
+    void* toKoopa() const override {
+        auto raw = new koopa_raw_program_t;
+
+        raw->values.buffer = nullptr;
+        raw->values.kind = KOOPA_RSIK_VALUE;
+        raw->values.len = 0;
+
+        auto buf = new void*;
+        *buf = func_def->toKoopa();
+        raw->funcs.buffer = (const void **)(buf);
+        raw->funcs.kind = KOOPA_RSIK_FUNCTION;
+        raw->funcs.len = 1;
+
+        return raw;
     }
 };
 
@@ -45,10 +74,36 @@ public:
         cout << " } ";
     }
 
-    void toKoopa(string &out) const override {
-        out += "fun @" + ident + "(): ";
-        func_type->toKoopa(out);
-        block->toKoopa(out);
+    void* toKoopa() const override {
+        auto raw = new koopa_raw_function_data_t;
+
+        raw->name = ident.c_str();
+        raw->params = {
+            nullptr,
+            0,
+            KOOPA_RSIK_VALUE
+        };
+        
+        auto ty = new koopa_raw_type_kind_t;
+        ty->tag = KOOPA_RTT_FUNCTION;
+        ty->data.function.params = {
+            nullptr,
+            0,
+            KOOPA_RSIK_VALUE
+        };
+        ty->data.function.ret = (koopa_raw_type_kind_t *)func_type->toKoopa();
+        raw->ty = ty;
+
+
+        auto buf = new void*;
+        *buf = block->toKoopa();
+        raw->bbs = {
+            (const void **)buf,
+            1,
+            KOOPA_RSIK_BASIC_BLOCK
+        };
+
+        return raw;
     }
 };
 
@@ -60,9 +115,14 @@ public:
         cout << "FuncType { " + type + " } ";
     }
 
-    void toKoopa(string &out) const override {
+    void* toKoopa() const override {
+        auto ret = new koopa_raw_type_kind_t;
         if(type == "int")
-            out += "i32 ";
+            ret->tag = KOOPA_RTT_INT32;
+        else
+            ret->tag = KOOPA_RTT_UNIT;
+
+        return ret;
     }
 };
 
@@ -76,10 +136,30 @@ public:
         cout << " } ";
     }
 
-    void toKoopa(string &out) const override {
-        out += "{\n%entry:\n";
-        stmt->toKoopa(out);
-        out += "}";
+    void* toKoopa() const override {
+        auto raw = new koopa_raw_basic_block_data_t;
+
+        raw->name = "entry";
+        raw->params = {
+            nullptr,
+            0,
+            KOOPA_RSIK_VALUE
+        };
+        raw->used_by = {
+            nullptr,
+            0,
+            KOOPA_RSIK_UNKNOWN
+        };
+
+        auto buf = new void*;
+        *buf = stmt->toKoopa();
+        raw->insts = {
+            (const void **)buf,
+            1,
+            KOOPA_RSIK_VALUE
+        };
+        
+        return raw;
     }
 };
 
@@ -93,21 +173,21 @@ public:
         cout << " } ";
     }
 
-    void toKoopa(string &out) const override {
-        string s = "";
-        exp->toKoopa(s);
-        if(variable_counter != 0) {
-            out += s;
-            out += "    ret %" + to_string(variable_counter - 1);
-        }
-        else {
-            out += "    ret " + s;
-        }
-        out += "\n";
-
-        variable_counter = 0;
-        assert(unaryOpStack.empty());
+    void* toKoopa() const override {
+        auto raw = new koopa_raw_value_data_t;
         
+        raw->kind.tag = KOOPA_RVT_RETURN;
+        raw->kind.data.ret.value = (koopa_raw_value_data_t *)exp->toKoopa();
+
+        raw->name = "I am Return!";
+        raw->ty = nullptr;
+        raw->used_by = {
+            nullptr,
+            0,
+            KOOPA_RSIK_UNKNOWN
+        };
+
+        return raw;
     }
 };
 
@@ -121,8 +201,8 @@ public:
         cout << " } ";
     }
 
-    void toKoopa(string &out) const override {
-        lOrExp->toKoopa(out);
+    void* toKoopa() const override {
+        return lOrExp->toKoopa();
     }
 };
 
@@ -135,8 +215,8 @@ public:
         exp->dump();
         cout << " } ";
     }
-    void toKoopa(string &out) const override {
-        exp->toKoopa(out);
+    void* toKoopa() const override {
+        return exp->toKoopa();
     }
 };
 
@@ -148,27 +228,20 @@ public:
         cout << num;
         cout << " } ";
     }
-    void toKoopa(string &out) const override {
-        while(!unaryOpStack.empty() && unaryOpStack.top() == '+') {
-            unaryOpStack.pop();
-        }
-        
-        if(unaryOpStack.empty()) {
-            out += to_string(num);
-            return;
-        }
-        out += "    %" + to_string(variable_counter++) + " = "; 
-        switch(unaryOpStack.top()) {
-        case '-':
-            out += "sub 0, " + to_string(num) + "\n";
-            break;
-        case '!':
-            out += "eq " + to_string(num) + ", 0\n";
-            break;
-        default:
-            assert(false);
-        }
-        unaryOpStack.pop();
+    void* toKoopa() const override {
+        auto raw = new koopa_raw_value_data_t;
+
+        raw->kind.tag = KOOPA_RVT_INTEGER;
+        raw->kind.data.integer.value = num;
+        raw->name = "I FOUND NUMBERS!";
+        raw->ty = nullptr;
+        raw->used_by = {
+            nullptr,
+            0,
+            KOOPA_RSIK_UNKNOWN
+        };
+
+        return raw;
     }
 };
 
@@ -181,8 +254,8 @@ public:
         primaryExp->dump();
         cout << " } ";
     }
-    void toKoopa(string &out) const override {
-        primaryExp->toKoopa(out);
+    void* toKoopa() const override {
+        return primaryExp->toKoopa();
     }
 };
 
@@ -197,28 +270,36 @@ public:
         unaryExp->dump();
         cout << " } ";
     }
-    void toKoopa(string &out) const override {
-        unaryOpStack.push(unaryOp[0]);
-        unaryExp->toKoopa(out);
-        while(!unaryOpStack.empty() && unaryOpStack.top() == '+') {
-            unaryOpStack.pop();
-        }
-        if(unaryOpStack.empty()) {
-            return;
-        }
-        switch(unaryOpStack.top()) {
-        case '-':
-            out += "    %" + to_string(variable_counter) + " = sub 0, %" + to_string(variable_counter - 1) + "\n";
-            variable_counter++;
-            break;
-        case '!':
-            out += "    %" + to_string(variable_counter) + " = eq %" + to_string(variable_counter - 1) + ", 0\n";
-            variable_counter++;
-            break;
-        default:
-            assert(false);
-        }
-        unaryOpStack.pop();
+    void* toKoopa() const override {
+        if(unaryOp == "+")
+            return unaryExp->toKoopa();
+
+        auto raw = new koopa_raw_value_data_t;
+
+        raw->kind.tag = KOOPA_RVT_BINARY;
+
+        auto lhs= new koopa_raw_value_data_t;
+        lhs->kind.tag = KOOPA_RVT_INTEGER;
+        lhs->kind.data.integer.value = 0;
+        lhs->name = "Just A Zero";
+        lhs->ty = nullptr;
+        lhs->used_by = {
+            nullptr,
+            0,
+            KOOPA_RSIK_UNKNOWN
+        };
+        raw->kind.data.binary.lhs = lhs;
+        raw->kind.data.binary.rhs = (koopa_raw_value_data_t *)unaryExp->toKoopa();
+        raw->kind.data.binary.op = op_map[unaryOp];
+        raw->name = "Here is an unary expression";
+        raw->ty = nullptr;
+        raw->used_by = {
+            nullptr,
+            0,
+            KOOPA_RSIK_UNKNOWN
+        };
+
+        return raw;
     }
 };
 
@@ -231,8 +312,8 @@ public:
         unaryExp->dump();
         cout << " } ";
     }
-    void toKoopa(string &out) const override {
-        unaryExp->toKoopa(out);
+    void* toKoopa() const override {
+        return unaryExp->toKoopa();
     }
 };
 
@@ -249,49 +330,22 @@ public:
         unaryExp->dump();
         cout << " } ";
     }
-    void toKoopa(string &out) const override {
-        int v0 = variable_counter - 1;
+    void* toKoopa() const override {
+        auto raw = new koopa_raw_value_data_t;
 
-        string s1 = "";
-        mulExp->toKoopa(s1);
-        int v1 = variable_counter - 1;
+        raw->kind.tag = KOOPA_RVT_BINARY;
+        raw->kind.data.binary.lhs = (koopa_raw_value_data_t *)mulExp->toKoopa();
+        raw->kind.data.binary.rhs = (koopa_raw_value_data_t *)unaryExp->toKoopa();
+        raw->kind.data.binary.op = op_map[mulOp];
+        raw->name = "Here is a mul expression";
+        raw->ty = nullptr;
+        raw->used_by = {
+            nullptr,
+            0,
+            KOOPA_RSIK_UNKNOWN
+        };
 
-        string s2 = "";
-        unaryExp->toKoopa(s2);
-        int v2 = variable_counter - 1;
-
-        string out1 = "";
-        out1 += "    %" + to_string(variable_counter++) + " = ";
-        switch(mulOp[0]) {
-        case '*':
-            out1 += "mul ";
-            break;
-        case '/':
-            out1 += "div ";
-            break;
-        case '%':
-            out1 += "mod ";
-            break;
-        default:
-            assert(false);
-        }
-        
-        if(v1 == v0) {
-            out1 += s1;
-        }
-        else {
-            out += s1;
-            out1 += "%" + to_string(v1);
-        }
-        out1 += ", ";
-        if(v2 == v1) {
-            out1 += s2;
-        }
-        else {
-            out += s2;
-            out1 += "%" + to_string(v2);
-        }
-        out += out1 + "\n";
+        return raw;
     }
 };
 
@@ -304,8 +358,8 @@ public:
         mulExp->dump();
         cout << " } ";
     }
-    void toKoopa(string &out) const override {
-        mulExp->toKoopa(out);
+    void* toKoopa() const override {
+        return mulExp->toKoopa();
     }
 };
 
@@ -322,46 +376,22 @@ public:
         mulExp->dump();
         cout << " } ";
     }
-    void toKoopa(string &out) const override {
-        int v0 = variable_counter - 1;
+    void* toKoopa() const override {
+        auto raw = new koopa_raw_value_data_t;
 
-        string s1 = "";
-        addExp->toKoopa(s1);
-        int v1 = variable_counter - 1;
+        raw->kind.tag = KOOPA_RVT_BINARY;
+        raw->kind.data.binary.lhs = (koopa_raw_value_data_t *)addExp->toKoopa();
+        raw->kind.data.binary.rhs = (koopa_raw_value_data_t *)mulExp->toKoopa();
+        raw->kind.data.binary.op = op_map[addOp];
+        raw->name = "Here is an add expression";
+        raw->ty = nullptr;
+        raw->used_by = {
+            nullptr,
+            0,
+            KOOPA_RSIK_UNKNOWN
+        };
 
-        string s2 = "";
-        mulExp->toKoopa(s2);
-        int v2 = variable_counter - 1;
-
-        string out1 = "";
-        out1 += "    %" + to_string(variable_counter++) + " = ";
-        switch(addOp[0]) {
-        case '+':
-            out1 += "add ";
-            break;
-        case '-':
-            out1 += "sub ";
-            break;
-        default:
-            assert(false);
-        }
-        
-        if(v1 == v0) {
-            out1 += s1;
-        }
-        else {
-            out += s1;
-            out1 += "%" + to_string(v1);
-        }
-        out1 += ", ";
-        if(v2 == v1) {
-            out1 += s2;
-        }
-        else {
-            out += s2;
-            out1 += "%" + to_string(v2);
-        }
-        out += out1 + "\n";
+        return raw;
     }
 };
 
@@ -374,8 +404,8 @@ public:
         addExp->dump();
         cout << " } ";
     }
-    void toKoopa(string &out) const override {
-        addExp->toKoopa(out);
+    void* toKoopa() const override {
+        return addExp->toKoopa();
     }
 };
 
@@ -392,51 +422,22 @@ public:
         addExp->dump();
         cout << " } ";
     }
-    void toKoopa(string &out) const override {
-        int v0 = variable_counter - 1;
+    void* toKoopa() const override {
+        auto raw = new koopa_raw_value_data_t;
 
-        string s1 = "";
-        relExp->toKoopa(s1);
-        int v1 = variable_counter - 1;
+        raw->kind.tag = KOOPA_RVT_BINARY;
+        raw->kind.data.binary.lhs = (koopa_raw_value_data_t *)relExp->toKoopa();
+        raw->kind.data.binary.rhs = (koopa_raw_value_data_t *)addExp->toKoopa();
+        raw->kind.data.binary.op = op_map[relOp];
+        raw->name = "Here is an rel expression";
+        raw->ty = nullptr;
+        raw->used_by = {
+            nullptr,
+            0,
+            KOOPA_RSIK_UNKNOWN
+        };
 
-        string s2 = "";
-        addExp->toKoopa(s2);
-        int v2 = variable_counter - 1;
-
-        string out1 = "";
-        out1 += "    %" + to_string(variable_counter++) + " = ";
-        if(relOp == "<") {
-            out1 += "lt ";
-        }
-        else if (relOp == ">") {
-            out1 += "gt ";
-        }
-        else if(relOp == "<=") {
-            out1 += "le ";
-        }
-        else if(relOp == ">=") {
-            out1 += "ge ";
-        }
-        else {
-            assert(false);
-        }
-        
-        if(v1 == v0) {
-            out1 += s1;
-        }
-        else {
-            out += s1;
-            out1 += "%" + to_string(v1);
-        }
-        out1 += ", ";
-        if(v2 == v1) {
-            out1 += s2;
-        }
-        else {
-            out += s2;
-            out1 += "%" + to_string(v2);
-        }
-        out += out1 + "\n";
+        return raw;
     }
 };
 
@@ -449,8 +450,8 @@ public:
         relExp->dump();
         cout << " } ";
     }
-    void toKoopa(string &out) const override {
-        relExp->toKoopa(out);
+    void* toKoopa() const override {
+        return relExp->toKoopa();
     }
 };
 
@@ -467,46 +468,22 @@ public:
         relExp->dump();
         cout << " } ";
     }
-    void toKoopa(string &out) const override {
-        int v0 = variable_counter - 1;
+    void* toKoopa() const override {
+        auto raw = new koopa_raw_value_data_t;
 
-        string s1 = "";
-        eqExp->toKoopa(s1);
-        int v1 = variable_counter - 1;
+        raw->kind.tag = KOOPA_RVT_BINARY;
+        raw->kind.data.binary.lhs = (koopa_raw_value_data_t *)eqExp->toKoopa();
+        raw->kind.data.binary.rhs = (koopa_raw_value_data_t *)relExp->toKoopa();
+        raw->kind.data.binary.op = op_map[eqOp];
+        raw->name = "Here is an eq expression";
+        raw->ty = nullptr;
+        raw->used_by = {
+            nullptr,
+            0,
+            KOOPA_RSIK_UNKNOWN
+        };
 
-        string s2 = "";
-        relExp->toKoopa(s2);
-        int v2 = variable_counter - 1;
-
-        string out1 = "";
-        out1 += "    %" + to_string(variable_counter++) + " = ";
-        switch(eqOp[0]) {
-        case '=':
-            out1 += "eq ";
-            break;
-        case '!':
-            out1 += "ne ";
-            break;
-        default:
-            assert(false);
-        }
-        
-        if(v1 == v0) {
-            out1 += s1;
-        }
-        else {
-            out += s1;
-            out1 += "%" + to_string(v1);
-        }
-        out1 += ", ";
-        if(v2 == v1) {
-            out1 += s2;
-        }
-        else {
-            out += s2;
-            out1 += "%" + to_string(v2);
-        }
-        out += out1 + "\n";
+        return raw;
     }
 };
 
@@ -519,8 +496,8 @@ public:
         eqExp->dump();
         cout << " } ";
     }
-    void toKoopa(string &out) const override {
-        eqExp->toKoopa(out);
+    void* toKoopa() const override {
+        return eqExp->toKoopa();
     }
 };
 
@@ -536,35 +513,72 @@ public:
         eqExp->dump();
         cout << " } ";
     }
-    void toKoopa(string &out) const override {
-        int v0 = variable_counter - 1;
+    void* toKoopa() const override {
+        auto raw1 = new koopa_raw_value_data_t;
 
-        string s1 = "";
-        lAndExp->toKoopa(s1);
-        if(variable_counter == v0 + 1) {
-            out += "    %" + to_string(variable_counter++) + " = ne 0, " + s1 + "\n";
-        }
-        else {
-            out += s1;
-            out += "    %" + to_string(variable_counter) + " = ne 0, %" + to_string(variable_counter - 1);
-            variable_counter++;
-        }
-        int v1 = variable_counter - 1;
-        
+        raw1->kind.tag = KOOPA_RVT_BINARY;
 
-        string s2 = "";
-        eqExp->toKoopa(s2);
-        if(variable_counter == v1 + 1) {
-            out += "    %" + to_string(variable_counter++) + " = ne 0, " + s2 + "\n";
-        }
-        else {
-            out += s2;
-            out += "    %" + to_string(variable_counter) + " = ne 0, %" + to_string(variable_counter - 1) + "\n";
-            variable_counter++;
-        }
-        int v2 = variable_counter - 1;
-        
-        out += "    %" + to_string(variable_counter++) + " = and %" + to_string(v1) + ", %" + to_string(v2) + "\n";
+        auto lhs1= new koopa_raw_value_data_t;
+        lhs1->kind.tag = KOOPA_RVT_INTEGER;
+        lhs1->kind.data.integer.value = 0;
+        lhs1->name = "Just A Zero";
+        lhs1->ty = nullptr;
+        lhs1->used_by = {
+            nullptr,
+            0,
+            KOOPA_RSIK_UNKNOWN
+        };
+        raw1->kind.data.binary.lhs = lhs1;
+        raw1->kind.data.binary.rhs = (koopa_raw_value_data_t *)lAndExp->toKoopa();
+        raw1->kind.data.binary.op = op_map["!"];
+        raw1->name = "Here is an unary expression";
+        raw1->ty = nullptr;
+        raw1->used_by = {
+            nullptr,
+            0,
+            KOOPA_RSIK_UNKNOWN
+        };
+
+        auto raw2 = new koopa_raw_value_data_t;
+
+        raw2->kind.tag = KOOPA_RVT_BINARY;
+
+        auto lhs2= new koopa_raw_value_data_t;
+        lhs2->kind.tag = KOOPA_RVT_INTEGER;
+        lhs2->kind.data.integer.value = 0;
+        lhs2->name = "Just A Zero";
+        lhs2->ty = nullptr;
+        lhs2->used_by = {
+            nullptr,
+            0,
+            KOOPA_RSIK_UNKNOWN
+        };
+        raw2->kind.data.binary.lhs = lhs2;
+        raw2->kind.data.binary.rhs = (koopa_raw_value_data_t *)eqExp->toKoopa();
+        raw2->kind.data.binary.op = op_map["!"];
+        raw2->name = "Here is an unary expression";
+        raw2->ty = nullptr;
+        raw2->used_by = {
+            nullptr,
+            0,
+            KOOPA_RSIK_UNKNOWN
+        };
+
+        auto raw = new koopa_raw_value_data_t;
+
+        raw->kind.tag = KOOPA_RVT_BINARY;
+        raw->kind.data.binary.lhs = raw1;
+        raw->kind.data.binary.rhs = raw2;
+        raw->kind.data.binary.op = op_map["&&"];
+        raw->name = "Here is an eq expression";
+        raw->ty = nullptr;
+        raw->used_by = {
+            nullptr,
+            0,
+            KOOPA_RSIK_UNKNOWN
+        };
+
+        return raw;
     }
 };
 
@@ -577,8 +591,8 @@ public:
         lAndExp->dump();
         cout << " } ";
     }
-    void toKoopa(string &out) const override {
-        lAndExp->toKoopa(out);
+    void* toKoopa() const override {
+        return lAndExp->toKoopa();
     }
 };
 
@@ -594,38 +608,46 @@ public:
         lAndExp->dump();
         cout << " } ";
     }
-    void toKoopa(string &out) const override {
-        int v0 = variable_counter - 1;
+    void* toKoopa() const override {
+        auto raw0 = new koopa_raw_value_data_t;
 
-        string s1 = "";
-        lOrExp->toKoopa(s1);
-        int v1 = variable_counter - 1;
+        raw0->kind.tag = KOOPA_RVT_BINARY;
+        raw0->kind.data.binary.lhs = (koopa_raw_value_data_t *)lOrExp->toKoopa();
+        raw0->kind.data.binary.rhs = (koopa_raw_value_data_t *)lAndExp->toKoopa();
+        raw0->kind.data.binary.op = op_map["||"];
+        raw0->name = "Here is an eq expression";
+        raw0->ty = nullptr;
+        raw0->used_by = {
+            nullptr,
+            0,
+            KOOPA_RSIK_UNKNOWN
+        };
 
-        string s2 = "";
-        lAndExp->toKoopa(s2);
-        int v2 = variable_counter - 1;
+        auto raw = new koopa_raw_value_data_t;
 
-        string out1 = "";
-        out1 += "    %" + to_string(variable_counter++) + " = or ";
-        
-        
-        if(v1 == v0) {
-            out1 += s1;
-        }
-        else {
-            out += s1;
-            out1 += "%" + to_string(v1);
-        }
-        out1 += ", ";
-        if(v2 == v1) {
-            out1 += s2;
-        }
-        else {
-            out += s2;
-            out1 += "%" + to_string(v2);
-        }
-        out += out1 + "\n";
-        out += "    %" +to_string(variable_counter) + " = ne 0, %" + to_string(variable_counter - 1) + "\n";
-        variable_counter++;
+        raw->kind.tag = KOOPA_RVT_BINARY;
+
+        auto lhs= new koopa_raw_value_data_t;
+        lhs->kind.tag = KOOPA_RVT_INTEGER;
+        lhs->kind.data.integer.value = 0;
+        lhs->name = "Just A Zero";
+        lhs->ty = nullptr;
+        lhs->used_by = {
+            nullptr,
+            0,
+            KOOPA_RSIK_UNKNOWN
+        };
+        raw->kind.data.binary.lhs = lhs;
+        raw->kind.data.binary.rhs = raw0;
+        raw->kind.data.binary.op = op_map["!="];
+        raw->name = "Here is an unary expression";
+        raw->ty = nullptr;
+        raw->used_by = {
+            nullptr,
+            0,
+            KOOPA_RSIK_UNKNOWN
+        };
+
+        return raw0;
     }
 };
