@@ -4,6 +4,12 @@
 #include <fstream>
 #include <memory>
 #include <string>
+
+#include <sys/types.h>
+#include <sys/stat.h>
+#include <fcntl.h>
+#include <unistd.h>
+
 #include "ast.hpp"
 #include "koopa.h"
 #include "visit_koopa.hpp"
@@ -39,7 +45,7 @@ int main(int argc, const char *argv[])
         koopa_program_t program;
         auto ret = koopa_generate_raw_to_koopa((koopa_raw_program_t *)raw, &program);
         assert(ret == KOOPA_EC_SUCCESS);
-        koopa_dump_to_stdout(program);
+        koopa_dump_to_file(program, output);
         
     }
     else {
