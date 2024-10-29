@@ -167,7 +167,7 @@ public:
         *helper = stmt->toKoopa();
         raw->insts = {
             (const void **)buf,
-            (unsigned)(helper - buf),
+            (unsigned)(helper - buf + 1),
             KOOPA_RSIK_VALUE
         };
         return raw;
@@ -193,7 +193,7 @@ public:
         value->used_by.buffer[value->used_by.len++] = raw;
         raw->kind.data.ret.value = value;
 
-        raw->name = "return";
+        raw->name = nullptr;
         raw->ty = nullptr;
         raw->used_by = {
             nullptr,
@@ -292,8 +292,6 @@ public:
 
         auto raw = new koopa_raw_value_data_t;
 
-        *helper = raw;
-        helper++;
         raw->kind.tag = KOOPA_RVT_BINARY;
 
         auto lhs= new koopa_raw_value_data_t;
@@ -322,6 +320,9 @@ public:
             0,
             KOOPA_RSIK_VALUE
         };
+
+        *helper = raw;
+        helper++;
 
         return raw;
     }
@@ -357,8 +358,6 @@ public:
     void* toKoopa() const override {
         auto raw = new koopa_raw_value_data_t;
 
-        *helper = raw;
-        helper++;
         raw->kind.tag = KOOPA_RVT_BINARY;
 
         auto lhs = (koopa_raw_value_data_t *)mulExp->toKoopa();
@@ -377,6 +376,9 @@ public:
             0,
             KOOPA_RSIK_VALUE
         };
+
+        *helper = raw;
+        helper++;
 
         return raw;
     }
@@ -412,9 +414,6 @@ public:
     void* toKoopa() const override {
         auto raw = new koopa_raw_value_data_t;
 
-        *helper = raw;
-        helper++;
-
         raw->kind.tag = KOOPA_RVT_BINARY;
         
         auto lhs = (koopa_raw_value_data_t *)addExp->toKoopa();
@@ -434,6 +433,10 @@ public:
             0,
             KOOPA_RSIK_VALUE
         };
+
+
+        *helper = raw;
+        helper++;
 
         return raw;
     }
@@ -468,9 +471,6 @@ public:
     }
     void* toKoopa() const override {
         auto raw = new koopa_raw_value_data_t;
-
-        *helper = raw;
-        helper++;
         
         raw->kind.tag = KOOPA_RVT_BINARY;
         
@@ -492,6 +492,9 @@ public:
             0,
             KOOPA_RSIK_VALUE
         };
+
+        *helper = raw;
+        helper++;
 
         return raw;
     }
@@ -526,9 +529,6 @@ public:
     }
     void* toKoopa() const override {
         auto raw = new koopa_raw_value_data_t;
-
-        *helper = raw;
-        helper++;
         
         raw->kind.tag = KOOPA_RVT_BINARY;
         
@@ -549,6 +549,9 @@ public:
             0,
             KOOPA_RSIK_VALUE
         };
+
+        *helper = raw;
+        helper++;
 
         return raw;
     }
@@ -582,9 +585,6 @@ public:
     }
     void* toKoopa() const override {
         auto raw1 = new koopa_raw_value_data_t;
-
-        *helper = raw1;
-        helper++;
         
         raw1->kind.tag = KOOPA_RVT_BINARY;
 
@@ -617,10 +617,10 @@ public:
             KOOPA_RSIK_VALUE
         };
 
-        auto raw2 = new koopa_raw_value_data_t;
-
-        *helper = raw2;
+        *helper = raw1;
         helper++;
+
+        auto raw2 = new koopa_raw_value_data_t;
 
         raw2->kind.tag = KOOPA_RVT_BINARY;
 
@@ -652,10 +652,10 @@ public:
             KOOPA_RSIK_VALUE
         };
 
-        auto raw = new koopa_raw_value_data_t;
-
-        *helper = raw;
+        *helper = raw2;
         helper++;
+
+        auto raw = new koopa_raw_value_data_t;
 
         raw->kind.tag = KOOPA_RVT_BINARY;
         raw1->used_by.buffer[raw1->used_by.len++] = raw;
@@ -672,6 +672,9 @@ public:
             0,
             KOOPA_RSIK_VALUE
         };
+
+        *helper = raw;
+        helper++;
 
         return raw;
     }
@@ -706,9 +709,6 @@ public:
     void* toKoopa() const override {
         auto raw0 = new koopa_raw_value_data_t;
 
-        *helper = raw0;
-        helper++;
-
         raw0->kind.tag = KOOPA_RVT_BINARY;
         auto lhs0 = (koopa_raw_value_data_t *)lOrExp->toKoopa();
         lhs0->used_by.buffer[lhs0->used_by.len++] = raw0;
@@ -727,10 +727,10 @@ public:
             KOOPA_RSIK_VALUE
         };
 
-        auto raw = new koopa_raw_value_data_t;
-
-        *helper = raw;
+        *helper = raw0;
         helper++;
+
+        auto raw = new koopa_raw_value_data_t;
 
         raw->kind.tag = KOOPA_RVT_BINARY;
 
@@ -761,6 +761,9 @@ public:
             0,
             KOOPA_RSIK_VALUE
         };
+
+        *helper = raw;
+        helper++;
 
         return raw0;
     }
