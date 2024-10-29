@@ -6,6 +6,8 @@
 #include <stack>
 #include <unordered_map>
 #include <koopa.h>
+#include <vector>
+#include <string.h>
 using namespace std;
 
 static unordered_map<string, koopa_raw_binary_op_t> op_map = {
@@ -31,7 +33,8 @@ class BaseAST {
 public:
     virtual ~BaseAST() = default;
     virtual void dump() const = 0;
-    virtual void* toKoopa() const = 0;
+    virtual void* toKoopa() const { return nullptr; }
+    virtual void* toKoopa(vector<const void *> &buffer) const { return nullptr; }
 };
 
 class CompUnitAST : public BaseAST {
@@ -51,11 +54,12 @@ public:
         raw->values.kind = KOOPA_RSIK_VALUE;
         raw->values.len = 0;
 
-        auto buf = new void*;
-        *buf = func_def->toKoopa();
-        raw->funcs.buffer = (const void **)(buf);
+        vector<const void *> buffer;
+        buffer.push_back(func_def->toKoopa());
+        raw->funcs.buffer = new const void *[buffer.size()];
+        copy(buffer.begin(), buffer.end(), raw->funcs.buffer);
         raw->funcs.kind = KOOPA_RSIK_FUNCTION;
-        raw->funcs.len = 1;
+        raw->funcs.len = buffer.size();
 
         return raw;
     }
@@ -78,7 +82,9 @@ public:
     void* toKoopa() const override {
         auto raw = new koopa_raw_function_data_t;
 
-        raw->name = ("@"+ident).c_str();
+        char *name = new char[ident.size() + 2];
+        strcpy(name, ("@"+ident).c_str());
+        raw->name = name;
         raw->params = {
             nullptr,
             0,
@@ -92,27 +98,15 @@ public:
             0,
             KOOPA_RSIK_TYPE
         };
-        ty->data.function.ret = (koopa_raw_type_kind_t *)func_type->toKoopa();
+        ty->data.function.ret = (const koopa_raw_type_kind_t *)func_type->toKoopa();
         raw->ty = ty;
 
-
-        auto buf = new void*;
-        *buf = block->toKoopa();
-        raw->bbs = {
-            (const void **)buf,
-            1,
-            KOOPA_RSIK_BASIC_BLOCK
-        };
-
-        for(int i = 0; i < raw->bbs.len; i++) {
-            auto ptr0 = reinterpret_cast<koopa_raw_basic_block_t>(raw->bbs.buffer[i]);
-            
-
-            for(int j = 0; j < ptr0->insts.len; j++) {
-                auto ptr1 = (koopa_raw_value_data_t *)(ptr0->insts.buffer[j]);
-                ptr1->ty = raw->ty->data.function.ret;
-            }
-        }
+        vector<const void *> buffer;
+        buffer.push_back(block->toKoopa());
+        raw->bbs.buffer = new const void *[buffer.size()];
+        copy(buffer.begin(),buffer.end(),raw->bbs.buffer);
+        raw->bbs.kind = KOOPA_RSIK_BASIC_BLOCK;
+        raw->bbs.len = buffer.size();
 
         return raw;
     }
@@ -162,14 +156,13 @@ public:
             KOOPA_RSIK_VALUE
         };
 
-        auto buf = new void*;
-        helper = buf;
-        *helper = stmt->toKoopa();
-        raw->insts = {
-            (const void **)buf,
-            (unsigned)(helper - buf + 1),
-            KOOPA_RSIK_VALUE
-        };
+        vector<const void *> buffer;
+        stmt->toKoopa(buffer);
+        raw->insts.buffer = new const void *[buffer.size()];
+        copy(buffer.begin(), buffer.end(), raw->insts.buffer);
+        raw->insts.kind = KOOPA_RSIK_VALUE;
+        raw->insts.len = buffer.size();
+
         return raw;
     }
 };
@@ -184,23 +177,26 @@ public:
         cout << " } ";
     }
 
-    void* toKoopa() const override {
+    void* toKoopa(vector<const void *> & buffer) const override {
         auto raw = new koopa_raw_value_data_t;
         
-        
         raw->kind.tag = KOOPA_RVT_RETURN;
-        auto value = (koopa_raw_value_data_t *)exp->toKoopa();
+        auto value = (koopa_raw_value_data_t *)exp->toKoopa(buffer);
         value->used_by.buffer[value->used_by.len++] = raw;
         raw->kind.data.ret.value = value;
 
         raw->name = nullptr;
-        raw->ty = nullptr;
+
+        auto ty = new koopa_raw_type_kind_t;
+        ty->tag = KOOPA_RTT_INT32;
+        raw->ty = ty;
+
         raw->used_by = {
             nullptr,
             0,
             KOOPA_RSIK_VALUE
         };
-
+        buffer.push_back(raw);
         return raw;
     }
 };
@@ -215,8 +211,8 @@ public:
         cout << " } ";
     }
 
-    void* toKoopa() const override {
-        return lOrExp->toKoopa();
+    void* toKoopa(vector<const void *> &buffer) const override {
+        return lOrExp->toKoopa(buffer);
     }
 };
 
@@ -229,8 +225,8 @@ public:
         exp->dump();
         cout << " } ";
     }
-    void* toKoopa() const override {
-        return exp->toKoopa();
+    void* toKoopa(vector<const void *> &buffer) const override {
+        return exp->toKoopa(buffer);
     }
 };
 
@@ -242,17 +238,19 @@ public:
         cout << num;
         cout << " } ";
     }
-    void* toKoopa() const override {
+    void* toKoopa(vector<const void *> &buffer) const override {
         auto raw = new koopa_raw_value_data_t;
 
         raw->kind.tag = KOOPA_RVT_INTEGER;
         raw->kind.data.integer.value = num;
         raw->name = nullptr;
-        raw->ty = nullptr;
+        
+        auto ty = new koopa_raw_type_kind_t;
+        ty->tag = KOOPA_RTT_INT32;
+        raw->ty = ty;
 
-        auto buf = new void*;
         raw->used_by = {
-            (const void**)buf,
+            new const void*,
             0,
             KOOPA_RSIK_VALUE
         };
@@ -270,8 +268,8 @@ public:
         primaryExp->dump();
         cout << " } ";
     }
-    void* toKoopa() const override {
-        return primaryExp->toKoopa();
+    void* toKoopa(vector<const void *> &buffer) const override {
+        return primaryExp->toKoopa(buffer);
     }
 };
 
@@ -286,11 +284,13 @@ public:
         unaryExp->dump();
         cout << " } ";
     }
-    void* toKoopa() const override {
+    void* toKoopa(vector<const void *> &buffer) const override {
         if(unaryOp == "+")
-            return unaryExp->toKoopa();
+            return unaryExp->toKoopa(buffer);
 
         auto raw = new koopa_raw_value_data_t;
+        auto ty = new koopa_raw_type_kind_t;
+        ty->tag = KOOPA_RTT_INT32;
 
         raw->kind.tag = KOOPA_RVT_BINARY;
 
@@ -298,31 +298,31 @@ public:
         lhs->kind.tag = KOOPA_RVT_INTEGER;
         lhs->kind.data.integer.value = 0;
         lhs->name = nullptr;
-        lhs->ty = nullptr;
-        auto buf_lhs = new void*;
+        lhs->ty = ty;
+
+        auto buf_lhs = new const void*;
         buf_lhs[0] = raw;
         lhs->used_by = {
-            (const void **)buf_lhs,
+            buf_lhs,
             1,
             KOOPA_RSIK_VALUE
         };
         raw->kind.data.binary.lhs = lhs;
 
-        auto rhs = (koopa_raw_value_data_t *)unaryExp->toKoopa();
+        auto rhs = (koopa_raw_value_data_t *)unaryExp->toKoopa(buffer);
         rhs->used_by.buffer[rhs->used_by.len++] = raw;
         raw->kind.data.binary.rhs = rhs;
         raw->kind.data.binary.op = op_map[unaryOp];
         raw->name = nullptr;
-        raw->ty = nullptr;
-        auto buf = new void*;
+        raw->ty = ty;
+        auto buf = new const void*;
         raw->used_by = {
-            (const void**)buf,
+            buf,
             0,
             KOOPA_RSIK_VALUE
         };
 
-        *helper = raw;
-        helper++;
+        buffer.push_back(raw);
 
         return raw;
     }
@@ -337,8 +337,8 @@ public:
         unaryExp->dump();
         cout << " } ";
     }
-    void* toKoopa() const override {
-        return unaryExp->toKoopa();
+    void* toKoopa(vector<const void *> &buffer) const override {
+        return unaryExp->toKoopa(buffer);
     }
 };
 
@@ -355,30 +355,32 @@ public:
         unaryExp->dump();
         cout << " } ";
     }
-    void* toKoopa() const override {
+    void* toKoopa(vector<const void *> &buffer) const override {
         auto raw = new koopa_raw_value_data_t;
+        auto ty = new koopa_raw_type_kind_t;
+        ty->tag = KOOPA_RTT_INT32;
 
         raw->kind.tag = KOOPA_RVT_BINARY;
 
-        auto lhs = (koopa_raw_value_data_t *)mulExp->toKoopa();
+        auto lhs = (koopa_raw_value_data_t *)mulExp->toKoopa(buffer);
         lhs->used_by.buffer[lhs->used_by.len++] = raw;
         raw->kind.data.binary.lhs = lhs;
 
-        auto rhs = (koopa_raw_value_data_t *)unaryExp->toKoopa();
+        auto rhs = (koopa_raw_value_data_t *)unaryExp->toKoopa(buffer);
         rhs->used_by.buffer[rhs->used_by.len++] = raw;
         raw->kind.data.binary.rhs = rhs;
+
         raw->kind.data.binary.op = op_map[mulOp];
         raw->name = nullptr;
-        raw->ty = nullptr;
-        auto buf = new void*;
+        raw->ty = ty;
+        auto buf = new const void*;
         raw->used_by = {
-            (const void**)buf,
+            buf,
             0,
             KOOPA_RSIK_VALUE
         };
 
-        *helper = raw;
-        helper++;
+        buffer.push_back(raw);
 
         return raw;
     }
@@ -393,8 +395,8 @@ public:
         mulExp->dump();
         cout << " } ";
     }
-    void* toKoopa() const override {
-        return mulExp->toKoopa();
+    void* toKoopa(vector<const void*> &buffer) const override {
+        return mulExp->toKoopa(buffer);
     }
 };
 
@@ -411,32 +413,32 @@ public:
         mulExp->dump();
         cout << " } ";
     }
-    void* toKoopa() const override {
+    void* toKoopa(vector<const void*> &buffer) const override {
         auto raw = new koopa_raw_value_data_t;
+        auto ty = new koopa_raw_type_kind_t;
+        ty->tag = KOOPA_RTT_INT32;
 
         raw->kind.tag = KOOPA_RVT_BINARY;
         
-        auto lhs = (koopa_raw_value_data_t *)addExp->toKoopa();
+        auto lhs = (koopa_raw_value_data_t *)addExp->toKoopa(buffer);
         lhs->used_by.buffer[lhs->used_by.len++] = raw;
         raw->kind.data.binary.lhs = lhs;
 
-        auto rhs = (koopa_raw_value_data_t *)mulExp->toKoopa();
+        auto rhs = (koopa_raw_value_data_t *)mulExp->toKoopa(buffer);
         rhs->used_by.buffer[rhs->used_by.len++] = raw;
         raw->kind.data.binary.rhs = rhs;
         raw->kind.data.binary.op = op_map[addOp];
         raw->name = nullptr;
-        raw->ty = nullptr;
+        raw->ty = ty;
 
-        auto buf = new void*;
+        auto buf = new const void*;
         raw->used_by = {
-            (const void**)buf,
+            buf,
             0,
             KOOPA_RSIK_VALUE
         };
 
-
-        *helper = raw;
-        helper++;
+        buffer.push_back(raw);
 
         return raw;
     }
@@ -451,8 +453,8 @@ public:
         addExp->dump();
         cout << " } ";
     }
-    void* toKoopa() const override {
-        return addExp->toKoopa();
+    void* toKoopa(vector<const void *> &buffer) const override {
+        return addExp->toKoopa(buffer);
     }
 };
 
@@ -469,32 +471,33 @@ public:
         addExp->dump();
         cout << " } ";
     }
-    void* toKoopa() const override {
+    void* toKoopa(vector<const void *> &buffer) const override {
         auto raw = new koopa_raw_value_data_t;
-        
+        auto ty = new koopa_raw_type_kind_t;
+        ty->tag = KOOPA_RTT_INT32;
+
         raw->kind.tag = KOOPA_RVT_BINARY;
         
-        auto lhs = (koopa_raw_value_data_t *)relExp->toKoopa();
+        auto lhs = (koopa_raw_value_data_t *)relExp->toKoopa(buffer);
         lhs->used_by.buffer[lhs->used_by.len++] = raw;
         raw->kind.data.binary.lhs = lhs;
 
-        auto rhs = (koopa_raw_value_data_t *)addExp->toKoopa();
+        auto rhs = (koopa_raw_value_data_t *)addExp->toKoopa(buffer);
         rhs->used_by.buffer[rhs->used_by.len++] = raw;
         raw->kind.data.binary.rhs = rhs;
 
         raw->kind.data.binary.op = op_map[relOp];
         raw->name = nullptr;
-        raw->ty = nullptr;
+        raw->ty = ty;
 
-        auto buf = new void*;
+        auto buf = new const void*;
         raw->used_by = {
-            (const void**)buf,
+            buf,
             0,
             KOOPA_RSIK_VALUE
         };
 
-        *helper = raw;
-        helper++;
+        buffer.push_back(raw);
 
         return raw;
     }
@@ -509,8 +512,8 @@ public:
         relExp->dump();
         cout << " } ";
     }
-    void* toKoopa() const override {
-        return relExp->toKoopa();
+    void* toKoopa(vector<const void *> &buffer) const override {
+        return relExp->toKoopa(buffer);
     }
 };
 
@@ -527,31 +530,32 @@ public:
         relExp->dump();
         cout << " } ";
     }
-    void* toKoopa() const override {
+    void* toKoopa(vector<const void *> &buffer) const override {
         auto raw = new koopa_raw_value_data_t;
+        auto ty = new koopa_raw_type_kind_t;
+        ty->tag = KOOPA_RTT_INT32;
         
         raw->kind.tag = KOOPA_RVT_BINARY;
         
-        auto lhs = (koopa_raw_value_data_t *)eqExp->toKoopa();
+        auto lhs = (koopa_raw_value_data_t *)eqExp->toKoopa(buffer);
         lhs->used_by.buffer[lhs->used_by.len++] = raw;
         raw->kind.data.binary.lhs = lhs;
 
-        auto rhs = (koopa_raw_value_data_t *)relExp->toKoopa();
+        auto rhs = (koopa_raw_value_data_t *)relExp->toKoopa(buffer);
         rhs->used_by.buffer[rhs->used_by.len++] = raw;
         raw->kind.data.binary.rhs = rhs;
         raw->kind.data.binary.op = op_map[eqOp];
         raw->name = nullptr;
-        raw->ty = nullptr;
+        raw->ty = ty;
 
-        auto buf = new void*;
+        auto buf = new const void*;
         raw->used_by = {
-            (const void**)buf,
+            buf,
             0,
             KOOPA_RSIK_VALUE
         };
 
-        *helper = raw;
-        helper++;
+        buffer.push_back(raw);
 
         return raw;
     }
@@ -566,8 +570,8 @@ public:
         eqExp->dump();
         cout << " } ";
     }
-    void* toKoopa() const override {
-        return eqExp->toKoopa();
+    void* toKoopa(vector<const void *> &buffer) const override {
+        return eqExp->toKoopa(buffer);
     }
 };
 
@@ -583,42 +587,44 @@ public:
         eqExp->dump();
         cout << " } ";
     }
-    void* toKoopa() const override {
+    void* toKoopa(vector<const void *> &buffer) const override {
+        auto ty = new koopa_raw_type_kind_t;
+        ty->tag = KOOPA_RTT_INT32;
+
         auto raw1 = new koopa_raw_value_data_t;
-        
+
         raw1->kind.tag = KOOPA_RVT_BINARY;
 
         auto lhs1= new koopa_raw_value_data_t;
         lhs1->kind.tag = KOOPA_RVT_INTEGER;
         lhs1->kind.data.integer.value = 0;
         lhs1->name = nullptr;
-        lhs1->ty = nullptr;
-        auto buf_lhs1 = new void*;
+        lhs1->ty = ty;
+        auto buf_lhs1 = new const void*;
         buf_lhs1[0] = raw1;
         lhs1->used_by = {
-            (const void**)buf_lhs1,
+            buf_lhs1,
             1,
             KOOPA_RSIK_VALUE
         };
         raw1->kind.data.binary.lhs = lhs1;
 
-        auto rhs1 = (koopa_raw_value_data_t *)lAndExp->toKoopa();
+        auto rhs1 = (koopa_raw_value_data_t *)lAndExp->toKoopa(buffer);
         rhs1->used_by.buffer[rhs1->used_by.len++] = raw1;
         raw1->kind.data.binary.rhs = rhs1;
 
-        raw1->kind.data.binary.op = op_map["!"];
+        raw1->kind.data.binary.op = op_map["!="];
         raw1->name = nullptr;
-        raw1->ty = nullptr;
+        raw1->ty = ty;
 
-        auto buf1 = new void*;
+        auto buf1 = new const void*;
         raw1->used_by = {
-            (const void**)buf1,
+            buf1,
             0,
             KOOPA_RSIK_VALUE
         };
 
-        *helper = raw1;
-        helper++;
+        buffer.push_back(raw1);
 
         auto raw2 = new koopa_raw_value_data_t;
 
@@ -628,32 +634,31 @@ public:
         lhs2->kind.tag = KOOPA_RVT_INTEGER;
         lhs2->kind.data.integer.value = 0;
         lhs2->name = nullptr;
-        lhs2->ty = nullptr;
-        auto buf_lhs2 = new void*;
+        lhs2->ty = ty;
+        auto buf_lhs2 = new const void*;
         buf_lhs2[0] = raw2;
         lhs2->used_by = {
-            (const void**)buf_lhs2,
+            buf_lhs2,
             1,
             KOOPA_RSIK_VALUE
         };
         raw2->kind.data.binary.lhs = lhs2;
 
-        auto rhs2 = (koopa_raw_value_data_t *)eqExp->toKoopa();
+        auto rhs2 = (koopa_raw_value_data_t *)eqExp->toKoopa(buffer);
         rhs2->used_by.buffer[rhs2->used_by.len++] = raw2;
         raw2->kind.data.binary.rhs = rhs2;
-        raw2->kind.data.binary.op = op_map["!"];
+        raw2->kind.data.binary.op = op_map["!="]; 
         raw2->name = nullptr;
-        raw2->ty = nullptr;
+        raw2->ty = ty;
 
-        auto buf2 = new void*;
+        auto buf2 = new const void*;
         raw2->used_by = {
-            (const void**)buf2,
+            buf2,
             0,
             KOOPA_RSIK_VALUE
         };
 
-        *helper = raw2;
-        helper++;
+        buffer.push_back(raw2);
 
         auto raw = new koopa_raw_value_data_t;
 
@@ -664,17 +669,16 @@ public:
         raw->kind.data.binary.rhs = raw2;
         raw->kind.data.binary.op = op_map["&&"];
         raw->name = nullptr;
-        raw->ty = nullptr;
+        raw->ty = ty;
         
-        auto buf = new void *;
+        auto buf = new const void *;
         raw->used_by = {
-            (const void**)buf,
+            buf,
             0,
             KOOPA_RSIK_VALUE
         };
 
-        *helper = raw;
-        helper++;
+        buffer.push_back(raw);
 
         return raw;
     }
@@ -689,8 +693,8 @@ public:
         lAndExp->dump();
         cout << " } ";
     }
-    void* toKoopa() const override {
-        return lAndExp->toKoopa();
+    void* toKoopa(vector<const void *> &buffer) const override {
+        return lAndExp->toKoopa(buffer);
     }
 };
 
@@ -706,29 +710,31 @@ public:
         lAndExp->dump();
         cout << " } ";
     }
-    void* toKoopa() const override {
+    void* toKoopa(vector<const void *> &buffer) const override {
+        auto ty = new koopa_raw_type_kind_t;
+        ty->tag = KOOPA_RTT_INT32;
+
         auto raw0 = new koopa_raw_value_data_t;
 
         raw0->kind.tag = KOOPA_RVT_BINARY;
-        auto lhs0 = (koopa_raw_value_data_t *)lOrExp->toKoopa();
+        auto lhs0 = (koopa_raw_value_data_t *)lOrExp->toKoopa(buffer);
         lhs0->used_by.buffer[lhs0->used_by.len++] = raw0;
         raw0->kind.data.binary.lhs = lhs0;
-        auto rhs0 = (koopa_raw_value_data_t *)lAndExp->toKoopa();
+        auto rhs0 = (koopa_raw_value_data_t *)lAndExp->toKoopa(buffer);
         rhs0->used_by.buffer[rhs0->used_by.len++] = raw0;
         raw0->kind.data.binary.rhs = rhs0;
         raw0->kind.data.binary.op = op_map["||"];
         raw0->name = nullptr;
-        raw0->ty = nullptr;
+        raw0->ty = ty;
 
-        auto buf0 = new void*;
+        auto buf0 = new const void*;
         raw0->used_by = {
-            (const void **)buf0,
+            buf0,
             0,
             KOOPA_RSIK_VALUE
         };
 
-        *helper = raw0;
-        helper++;
+        buffer.push_back(raw0);
 
         auto raw = new koopa_raw_value_data_t;
 
@@ -738,11 +744,11 @@ public:
         lhs->kind.tag = KOOPA_RVT_INTEGER;
         lhs->kind.data.integer.value = 0;
         lhs->name = nullptr;
-        lhs->ty = nullptr;
-        auto buf_lhs = new void*;
+        lhs->ty = ty;
+        auto buf_lhs = new const void*;
         buf_lhs[0] = raw;
         lhs->used_by = {
-            (const void**)buf_lhs,
+            buf_lhs,
             1,
             KOOPA_RSIK_VALUE
         };
@@ -753,18 +759,17 @@ public:
 
         raw->kind.data.binary.op = op_map["!="];
         raw->name = nullptr;
-        raw->ty = nullptr;
+        raw->ty = ty;
 
-        auto buf = new void*;
+        auto buf = new const void*;
         raw->used_by = {
-            (const void **)buf,
+            buf,
             0,
             KOOPA_RSIK_VALUE
         };
 
-        *helper = raw;
-        helper++;
+        buffer.push_back(raw);
 
-        return raw0;
+        return raw;
     }
 };
