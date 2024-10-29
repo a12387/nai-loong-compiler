@@ -58,11 +58,7 @@ int main(int argc, const char *argv[])
 
         koopa_generate_raw_to_koopa(&raw, &program);
         koopa_dump_to_stdout(program);
-<<<<<<< HEAD
 
-=======
-        
->>>>>>> fix
         ofstream out(output, ios::out | ios::trunc);
         assert(out.is_open());
         visit(out, raw);
