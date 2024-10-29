@@ -25,6 +25,7 @@ static unordered_map<string, koopa_raw_binary_op_t> op_map = {
     {"||", KOOPA_RBO_OR}
 };
 
+static void ** helper = nullptr;
 
 class BaseAST {
 public:
@@ -89,7 +90,7 @@ public:
         ty->data.function.params = {
             nullptr,
             0,
-            KOOPA_RSIK_VALUE
+            KOOPA_RSIK_TYPE
         };
         ty->data.function.ret = (koopa_raw_type_kind_t *)func_type->toKoopa();
         raw->ty = ty;
@@ -102,6 +103,16 @@ public:
             1,
             KOOPA_RSIK_BASIC_BLOCK
         };
+
+        for(int i = 0; i < raw->bbs.len; i++) {
+            auto ptr0 = reinterpret_cast<koopa_raw_basic_block_t>(raw->bbs.buffer[i]);
+            
+
+            for(int j = 0; j < ptr0->insts.len; j++) {
+                auto ptr1 = (koopa_raw_value_data_t *)(ptr0->insts.buffer[j]);
+                ptr1->ty = raw->ty->data.function.ret;
+            }
+        }
 
         return raw;
     }
@@ -139,7 +150,7 @@ public:
     void* toKoopa() const override {
         auto raw = new koopa_raw_basic_block_data_t;
 
-        raw->name = "entry";
+        raw->name = "%entry";
         raw->params = {
             nullptr,
             0,
@@ -148,17 +159,17 @@ public:
         raw->used_by = {
             nullptr,
             0,
-            KOOPA_RSIK_UNKNOWN
+            KOOPA_RSIK_VALUE
         };
 
         auto buf = new void*;
-        *buf = stmt->toKoopa();
+        helper = buf;
+        *helper = stmt->toKoopa();
         raw->insts = {
             (const void **)buf,
-            1,
+            (unsigned)(helper - buf),
             KOOPA_RSIK_VALUE
         };
-        
         return raw;
     }
 };
@@ -176,15 +187,18 @@ public:
     void* toKoopa() const override {
         auto raw = new koopa_raw_value_data_t;
         
+        
         raw->kind.tag = KOOPA_RVT_RETURN;
-        raw->kind.data.ret.value = (koopa_raw_value_data_t *)exp->toKoopa();
+        auto value = (koopa_raw_value_data_t *)exp->toKoopa();
+        value->used_by.buffer[value->used_by.len++] = raw;
+        raw->kind.data.ret.value = value;
 
-        raw->name = "I am Return!";
+        raw->name = "return";
         raw->ty = nullptr;
         raw->used_by = {
             nullptr,
             0,
-            KOOPA_RSIK_UNKNOWN
+            KOOPA_RSIK_VALUE
         };
 
         return raw;
@@ -233,12 +247,14 @@ public:
 
         raw->kind.tag = KOOPA_RVT_INTEGER;
         raw->kind.data.integer.value = num;
-        raw->name = "I FOUND NUMBERS!";
+        raw->name = nullptr;
         raw->ty = nullptr;
+
+        auto buf = new void*;
         raw->used_by = {
-            nullptr,
+            (const void**)buf,
             0,
-            KOOPA_RSIK_UNKNOWN
+            KOOPA_RSIK_VALUE
         };
 
         return raw;
@@ -276,27 +292,35 @@ public:
 
         auto raw = new koopa_raw_value_data_t;
 
+        *helper = raw;
+        helper++;
         raw->kind.tag = KOOPA_RVT_BINARY;
 
         auto lhs= new koopa_raw_value_data_t;
         lhs->kind.tag = KOOPA_RVT_INTEGER;
         lhs->kind.data.integer.value = 0;
-        lhs->name = "Just A Zero";
+        lhs->name = nullptr;
         lhs->ty = nullptr;
+        auto buf_lhs = new void*;
+        buf_lhs[0] = raw;
         lhs->used_by = {
-            nullptr,
-            0,
-            KOOPA_RSIK_UNKNOWN
+            (const void **)buf_lhs,
+            1,
+            KOOPA_RSIK_VALUE
         };
         raw->kind.data.binary.lhs = lhs;
-        raw->kind.data.binary.rhs = (koopa_raw_value_data_t *)unaryExp->toKoopa();
+
+        auto rhs = (koopa_raw_value_data_t *)unaryExp->toKoopa();
+        rhs->used_by.buffer[rhs->used_by.len++] = raw;
+        raw->kind.data.binary.rhs = rhs;
         raw->kind.data.binary.op = op_map[unaryOp];
-        raw->name = "Here is an unary expression";
+        raw->name = nullptr;
         raw->ty = nullptr;
+        auto buf = new void*;
         raw->used_by = {
-            nullptr,
+            (const void**)buf,
             0,
-            KOOPA_RSIK_UNKNOWN
+            KOOPA_RSIK_VALUE
         };
 
         return raw;
@@ -333,16 +357,25 @@ public:
     void* toKoopa() const override {
         auto raw = new koopa_raw_value_data_t;
 
+        *helper = raw;
+        helper++;
         raw->kind.tag = KOOPA_RVT_BINARY;
-        raw->kind.data.binary.lhs = (koopa_raw_value_data_t *)mulExp->toKoopa();
-        raw->kind.data.binary.rhs = (koopa_raw_value_data_t *)unaryExp->toKoopa();
+
+        auto lhs = (koopa_raw_value_data_t *)mulExp->toKoopa();
+        lhs->used_by.buffer[lhs->used_by.len++] = raw;
+        raw->kind.data.binary.lhs = lhs;
+
+        auto rhs = (koopa_raw_value_data_t *)unaryExp->toKoopa();
+        rhs->used_by.buffer[rhs->used_by.len++] = raw;
+        raw->kind.data.binary.rhs = rhs;
         raw->kind.data.binary.op = op_map[mulOp];
-        raw->name = "Here is a mul expression";
+        raw->name = nullptr;
         raw->ty = nullptr;
+        auto buf = new void*;
         raw->used_by = {
-            nullptr,
+            (const void**)buf,
             0,
-            KOOPA_RSIK_UNKNOWN
+            KOOPA_RSIK_VALUE
         };
 
         return raw;
@@ -379,16 +412,27 @@ public:
     void* toKoopa() const override {
         auto raw = new koopa_raw_value_data_t;
 
+        *helper = raw;
+        helper++;
+
         raw->kind.tag = KOOPA_RVT_BINARY;
-        raw->kind.data.binary.lhs = (koopa_raw_value_data_t *)addExp->toKoopa();
-        raw->kind.data.binary.rhs = (koopa_raw_value_data_t *)mulExp->toKoopa();
+        
+        auto lhs = (koopa_raw_value_data_t *)addExp->toKoopa();
+        lhs->used_by.buffer[lhs->used_by.len++] = raw;
+        raw->kind.data.binary.lhs = lhs;
+
+        auto rhs = (koopa_raw_value_data_t *)mulExp->toKoopa();
+        rhs->used_by.buffer[rhs->used_by.len++] = raw;
+        raw->kind.data.binary.rhs = rhs;
         raw->kind.data.binary.op = op_map[addOp];
-        raw->name = "Here is an add expression";
+        raw->name = nullptr;
         raw->ty = nullptr;
+
+        auto buf = new void*;
         raw->used_by = {
-            nullptr,
+            (const void**)buf,
             0,
-            KOOPA_RSIK_UNKNOWN
+            KOOPA_RSIK_VALUE
         };
 
         return raw;
@@ -425,16 +469,28 @@ public:
     void* toKoopa() const override {
         auto raw = new koopa_raw_value_data_t;
 
+        *helper = raw;
+        helper++;
+        
         raw->kind.tag = KOOPA_RVT_BINARY;
-        raw->kind.data.binary.lhs = (koopa_raw_value_data_t *)relExp->toKoopa();
-        raw->kind.data.binary.rhs = (koopa_raw_value_data_t *)addExp->toKoopa();
+        
+        auto lhs = (koopa_raw_value_data_t *)relExp->toKoopa();
+        lhs->used_by.buffer[lhs->used_by.len++] = raw;
+        raw->kind.data.binary.lhs = lhs;
+
+        auto rhs = (koopa_raw_value_data_t *)addExp->toKoopa();
+        rhs->used_by.buffer[rhs->used_by.len++] = raw;
+        raw->kind.data.binary.rhs = rhs;
+
         raw->kind.data.binary.op = op_map[relOp];
-        raw->name = "Here is an rel expression";
+        raw->name = nullptr;
         raw->ty = nullptr;
+
+        auto buf = new void*;
         raw->used_by = {
-            nullptr,
+            (const void**)buf,
             0,
-            KOOPA_RSIK_UNKNOWN
+            KOOPA_RSIK_VALUE
         };
 
         return raw;
@@ -471,16 +527,27 @@ public:
     void* toKoopa() const override {
         auto raw = new koopa_raw_value_data_t;
 
+        *helper = raw;
+        helper++;
+        
         raw->kind.tag = KOOPA_RVT_BINARY;
-        raw->kind.data.binary.lhs = (koopa_raw_value_data_t *)eqExp->toKoopa();
-        raw->kind.data.binary.rhs = (koopa_raw_value_data_t *)relExp->toKoopa();
+        
+        auto lhs = (koopa_raw_value_data_t *)eqExp->toKoopa();
+        lhs->used_by.buffer[lhs->used_by.len++] = raw;
+        raw->kind.data.binary.lhs = lhs;
+
+        auto rhs = (koopa_raw_value_data_t *)relExp->toKoopa();
+        rhs->used_by.buffer[rhs->used_by.len++] = raw;
+        raw->kind.data.binary.rhs = rhs;
         raw->kind.data.binary.op = op_map[eqOp];
-        raw->name = "Here is an eq expression";
+        raw->name = nullptr;
         raw->ty = nullptr;
+
+        auto buf = new void*;
         raw->used_by = {
-            nullptr,
+            (const void**)buf,
             0,
-            KOOPA_RSIK_UNKNOWN
+            KOOPA_RSIK_VALUE
         };
 
         return raw;
@@ -516,66 +583,94 @@ public:
     void* toKoopa() const override {
         auto raw1 = new koopa_raw_value_data_t;
 
+        *helper = raw1;
+        helper++;
+        
         raw1->kind.tag = KOOPA_RVT_BINARY;
 
         auto lhs1= new koopa_raw_value_data_t;
         lhs1->kind.tag = KOOPA_RVT_INTEGER;
         lhs1->kind.data.integer.value = 0;
-        lhs1->name = "Just A Zero";
+        lhs1->name = nullptr;
         lhs1->ty = nullptr;
+        auto buf_lhs1 = new void*;
+        buf_lhs1[0] = raw1;
         lhs1->used_by = {
-            nullptr,
-            0,
-            KOOPA_RSIK_UNKNOWN
+            (const void**)buf_lhs1,
+            1,
+            KOOPA_RSIK_VALUE
         };
         raw1->kind.data.binary.lhs = lhs1;
-        raw1->kind.data.binary.rhs = (koopa_raw_value_data_t *)lAndExp->toKoopa();
+
+        auto rhs1 = (koopa_raw_value_data_t *)lAndExp->toKoopa();
+        rhs1->used_by.buffer[rhs1->used_by.len++] = raw1;
+        raw1->kind.data.binary.rhs = rhs1;
+
         raw1->kind.data.binary.op = op_map["!"];
-        raw1->name = "Here is an unary expression";
+        raw1->name = nullptr;
         raw1->ty = nullptr;
+
+        auto buf1 = new void*;
         raw1->used_by = {
-            nullptr,
+            (const void**)buf1,
             0,
-            KOOPA_RSIK_UNKNOWN
+            KOOPA_RSIK_VALUE
         };
 
         auto raw2 = new koopa_raw_value_data_t;
+
+        *helper = raw2;
+        helper++;
 
         raw2->kind.tag = KOOPA_RVT_BINARY;
 
         auto lhs2= new koopa_raw_value_data_t;
         lhs2->kind.tag = KOOPA_RVT_INTEGER;
         lhs2->kind.data.integer.value = 0;
-        lhs2->name = "Just A Zero";
+        lhs2->name = nullptr;
         lhs2->ty = nullptr;
+        auto buf_lhs2 = new void*;
+        buf_lhs2[0] = raw2;
         lhs2->used_by = {
-            nullptr,
-            0,
-            KOOPA_RSIK_UNKNOWN
+            (const void**)buf_lhs2,
+            1,
+            KOOPA_RSIK_VALUE
         };
         raw2->kind.data.binary.lhs = lhs2;
-        raw2->kind.data.binary.rhs = (koopa_raw_value_data_t *)eqExp->toKoopa();
+
+        auto rhs2 = (koopa_raw_value_data_t *)eqExp->toKoopa();
+        rhs2->used_by.buffer[rhs2->used_by.len++] = raw2;
+        raw2->kind.data.binary.rhs = rhs2;
         raw2->kind.data.binary.op = op_map["!"];
-        raw2->name = "Here is an unary expression";
+        raw2->name = nullptr;
         raw2->ty = nullptr;
+
+        auto buf2 = new void*;
         raw2->used_by = {
-            nullptr,
+            (const void**)buf2,
             0,
-            KOOPA_RSIK_UNKNOWN
+            KOOPA_RSIK_VALUE
         };
 
         auto raw = new koopa_raw_value_data_t;
 
+        *helper = raw;
+        helper++;
+
         raw->kind.tag = KOOPA_RVT_BINARY;
+        raw1->used_by.buffer[raw1->used_by.len++] = raw;
         raw->kind.data.binary.lhs = raw1;
+        raw2->used_by.buffer[raw2->used_by.len++] = raw;
         raw->kind.data.binary.rhs = raw2;
         raw->kind.data.binary.op = op_map["&&"];
-        raw->name = "Here is an eq expression";
+        raw->name = nullptr;
         raw->ty = nullptr;
+        
+        auto buf = new void *;
         raw->used_by = {
-            nullptr,
+            (const void**)buf,
             0,
-            KOOPA_RSIK_UNKNOWN
+            KOOPA_RSIK_VALUE
         };
 
         return raw;
@@ -611,41 +706,60 @@ public:
     void* toKoopa() const override {
         auto raw0 = new koopa_raw_value_data_t;
 
+        *helper = raw0;
+        helper++;
+
         raw0->kind.tag = KOOPA_RVT_BINARY;
-        raw0->kind.data.binary.lhs = (koopa_raw_value_data_t *)lOrExp->toKoopa();
-        raw0->kind.data.binary.rhs = (koopa_raw_value_data_t *)lAndExp->toKoopa();
+        auto lhs0 = (koopa_raw_value_data_t *)lOrExp->toKoopa();
+        lhs0->used_by.buffer[lhs0->used_by.len++] = raw0;
+        raw0->kind.data.binary.lhs = lhs0;
+        auto rhs0 = (koopa_raw_value_data_t *)lAndExp->toKoopa();
+        rhs0->used_by.buffer[rhs0->used_by.len++] = raw0;
+        raw0->kind.data.binary.rhs = rhs0;
         raw0->kind.data.binary.op = op_map["||"];
-        raw0->name = "Here is an eq expression";
+        raw0->name = nullptr;
         raw0->ty = nullptr;
+
+        auto buf0 = new void*;
         raw0->used_by = {
-            nullptr,
+            (const void **)buf0,
             0,
-            KOOPA_RSIK_UNKNOWN
+            KOOPA_RSIK_VALUE
         };
 
         auto raw = new koopa_raw_value_data_t;
+
+        *helper = raw;
+        helper++;
 
         raw->kind.tag = KOOPA_RVT_BINARY;
 
         auto lhs= new koopa_raw_value_data_t;
         lhs->kind.tag = KOOPA_RVT_INTEGER;
         lhs->kind.data.integer.value = 0;
-        lhs->name = "Just A Zero";
+        lhs->name = nullptr;
         lhs->ty = nullptr;
+        auto buf_lhs = new void*;
+        buf_lhs[0] = raw;
         lhs->used_by = {
-            nullptr,
-            0,
-            KOOPA_RSIK_UNKNOWN
+            (const void**)buf_lhs,
+            1,
+            KOOPA_RSIK_VALUE
         };
         raw->kind.data.binary.lhs = lhs;
+
+        raw0->used_by.buffer[raw0->used_by.len++] = raw;
         raw->kind.data.binary.rhs = raw0;
+
         raw->kind.data.binary.op = op_map["!="];
-        raw->name = "Here is an unary expression";
+        raw->name = nullptr;
         raw->ty = nullptr;
+
+        auto buf = new void*;
         raw->used_by = {
-            nullptr,
+            (const void **)buf,
             0,
-            KOOPA_RSIK_UNKNOWN
+            KOOPA_RSIK_VALUE
         };
 
         return raw0;
