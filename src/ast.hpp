@@ -14,7 +14,7 @@ static unordered_map<string, koopa_raw_binary_op_t> op_map = {
     {"*", KOOPA_RBO_MUL},
     {"/", KOOPA_RBO_DIV},
     {"%", KOOPA_RBO_MOD},
-    {"!", KOOPA_RBO_NOT_EQ},
+    {"!", KOOPA_RBO_EQ},
     {"<", KOOPA_RBO_LT},
     {">", KOOPA_RBO_GT},
     {"<=", KOOPA_RBO_LE},
