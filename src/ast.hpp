@@ -31,7 +31,7 @@ static unordered_map<string, koopa_raw_binary_op_t> op_map = {
     {"||", KOOPA_RBO_OR}
 };
 
-static void ** helper = nullptr;
+static unordered_map<string, int> symbolTable;
 
 class BaseAST {
 public:
@@ -39,6 +39,7 @@ public:
     virtual Json::Value dump() const = 0;
     virtual void* toKoopa() const { return nullptr; }
     virtual void* toKoopa(vector<const void *> &buffer) const { return nullptr; }
+    virtual int calculateExp() const { return 0; }
 };
 
 class CompUnitAST : public BaseAST {
@@ -169,8 +170,8 @@ public:
         };
 
         vector<const void *> buffer;
-        for(auto &i : *blockItem) {
-            i->toKoopa(buffer);
+        for(int i = 0; i < blockItem->size(); i++) {
+            (*blockItem)[i]->toKoopa(buffer);
         }
         raw->insts.buffer = new const void *[buffer.size()];
         copy(buffer.begin(), buffer.end(), raw->insts.buffer);
@@ -224,9 +225,11 @@ public:
     Json::Value dump() const override {
         return lOrExp->dump();
     }
-
     void* toKoopa(vector<const void *> &buffer) const override {
         return lOrExp->toKoopa(buffer);
+    }
+    int calculateExp() const override {
+        return lOrExp->calculateExp();
     }
 };
 
@@ -239,6 +242,9 @@ public:
     }
     void* toKoopa(vector<const void *> &buffer) const override {
         return exp->toKoopa(buffer);
+    }
+    int calculateExp() const override {
+        return exp->calculateExp();
     }
 };
 
@@ -269,6 +275,9 @@ public:
 
         return raw;
     }
+    int calculateExp() const override {
+        return num;
+    }
 };
 
 class PrimaryExpAST3 : public BaseAST {
@@ -280,8 +289,27 @@ public:
         primaryExp["LVal"] = lVal->dump();
         return primaryExp;
     }
-    void *toKoopa() const override {
+    void *toKoopa(vector<const void *> &buffer) const override {
+        auto raw = new koopa_raw_value_data_t;
 
+        raw->kind.tag = KOOPA_RVT_INTEGER;
+        raw->kind.data.integer.value = lVal->calculateExp();
+        raw->name = nullptr;
+        
+        auto ty = new koopa_raw_type_kind_t;
+        ty->tag = KOOPA_RTT_INT32;
+        raw->ty = ty;
+
+        raw->used_by = {
+            new const void*,
+            0,
+            KOOPA_RSIK_VALUE
+        };
+
+        return raw;
+    }
+    int calculateExp() const override {
+        return lVal->calculateExp();
     }
 };
 
@@ -294,6 +322,9 @@ public:
     }
     void* toKoopa(vector<const void *> &buffer) const override {
         return primaryExp->toKoopa(buffer);
+    }
+    int calculateExp() const override {
+        return primaryExp->calculateExp();
     }
 };
 
@@ -350,6 +381,17 @@ public:
 
         return raw;
     }
+    int calculateExp() const override {
+        switch(unaryOp[0]) {
+        case '+':
+            return unaryExp->calculateExp();
+        case '-':
+            return -unaryExp->calculateExp();
+        case '!':
+            return !unaryExp->calculateExp();
+        }
+        return 0;
+    }
 };
 
 class MulExpAST1 : public BaseAST {
@@ -361,6 +403,9 @@ public:
     }
     void* toKoopa(vector<const void *> &buffer) const override {
         return unaryExp->toKoopa(buffer);
+    }
+    int calculateExp() const override {
+        return unaryExp->calculateExp();
     }
 };
 
@@ -406,6 +451,17 @@ public:
 
         return raw;
     }
+    int calculateExp() const override {
+        switch(mulOp[0]) {
+        case '*':
+            return mulExp->calculateExp() * unaryExp->calculateExp();
+        case '/':
+            return mulExp->calculateExp() / unaryExp->calculateExp();
+        case '%':
+            return mulExp->calculateExp() % unaryExp->calculateExp();
+        }
+        return 0;
+    }
 };
 
 class AddExpAST1 : public BaseAST {
@@ -417,6 +473,9 @@ public:
     }
     void* toKoopa(vector<const void*> &buffer) const override {
         return mulExp->toKoopa(buffer);
+    }
+    int calculateExp() const override {
+        return mulExp->calculateExp();
     }
 };
 
@@ -462,6 +521,13 @@ public:
 
         return raw;
     }
+    int calculateExp() const override {
+        if(addOp[0] == '+')
+            return addExp->calculateExp() + mulExp->calculateExp();
+        else if(addOp[0] == '-')
+            return addExp->calculateExp() - mulExp->calculateExp();
+        return 0;
+    }
 };
 
 class RelExpAST1 : public BaseAST {
@@ -473,6 +539,9 @@ public:
     }
     void* toKoopa(vector<const void *> &buffer) const override {
         return addExp->toKoopa(buffer);
+    }
+    int calculateExp() const override {
+        return addExp->calculateExp();
     }
 };
 
@@ -519,6 +588,21 @@ public:
 
         return raw;
     }
+    int calculateExp() const override {
+        if(relOp[0] == '<') {
+            if(relOp.size() == 1)
+                return relExp->calculateExp() < addExp->calculateExp();
+            else
+                return relExp->calculateExp() <= addExp->calculateExp();
+        }
+        else if(relOp[0] == '>') {
+            if(relOp.size() == 1) 
+                return relExp->calculateExp() > addExp->calculateExp();
+            else
+                return relExp->calculateExp() <= addExp->calculateExp();
+        }
+        return 0;
+    }
 };
 
 class EqExpAST1 : public BaseAST {
@@ -530,6 +614,9 @@ public:
     }
     void* toKoopa(vector<const void *> &buffer) const override {
         return relExp->toKoopa(buffer);
+    }
+    int calculateExp() const override {
+        return relExp->calculateExp();
     }
 };
 
@@ -575,6 +662,13 @@ public:
 
         return raw;
     }
+    int calculateExp() const override {
+        if(eqOp == "==")
+            return eqExp->calculateExp() == relExp->calculateExp();
+        else if(eqOp == "!=")
+            return eqExp->calculateExp() != relExp->calculateExp();
+        return 0;
+    }
 };
 
 class LAndExpAST1 : public BaseAST {
@@ -586,6 +680,9 @@ public:
     }
     void* toKoopa(vector<const void *> &buffer) const override {
         return eqExp->toKoopa(buffer);
+    }
+    int calculateExp() const override {
+        return eqExp->calculateExp();
     }
 };
 
@@ -696,6 +793,9 @@ public:
 
         return raw;
     }
+    int calculateExp() const override {
+        return lAndExp->calculateExp() && eqExp->calculateExp();
+    }
 };
 
 class LOrExpAST1 : public BaseAST {
@@ -707,6 +807,9 @@ public:
     }
     void* toKoopa(vector<const void *> &buffer) const override {
         return lAndExp->toKoopa(buffer);
+    }
+    int calculateExp() const override {
+        return lAndExp->calculateExp();
     }
 };
 
@@ -784,6 +887,9 @@ public:
 
         return raw;
     }
+    int calculateExp() const override {
+        return lOrExp->calculateExp() || lAndExp->calculateExp();
+    }
 };
 
 class DeclAST : public BaseAST {
@@ -795,8 +901,9 @@ public:
         v["ConstDecl"] = constDecl->dump();
         return v;
     }
-    void *toKoopa() const override {
-
+    void *toKoopa(vector<const void*> &buffer) const override {
+        constDecl->toKoopa();
+        return nullptr;
     }
 };
 
@@ -816,7 +923,10 @@ public:
         return v;
     }
     void *toKoopa() const override {
-
+        for(int i = 0; i < constDef->size(); i++) {
+            (*constDef)[i]->toKoopa();
+        }
+        return nullptr;
     }
 };
 
@@ -828,9 +938,6 @@ public:
         Json::Value v;
         v["Type"] = type;
         return v;
-    }
-    void *toKoopa() const override {
-
     }
 };
 
@@ -846,7 +953,8 @@ public:
         return v;
     }
     void *toKoopa() const override {
-
+        symbolTable.insert(make_pair(ident, constInitVal->calculateExp()));
+        return nullptr;
     }
 };
 
@@ -857,8 +965,8 @@ public:
     Json::Value dump() const override {
         return constExp->dump();
     }
-    void *toKoopa() const override {
-
+    int calculateExp() const override {
+        return constExp->calculateExp();
     }
 };
 
@@ -871,8 +979,8 @@ public:
         v["Ident"] = ident;
         return v;
     }
-    void *toKoopa() const override {
-
+    int calculateExp() const override {
+        return symbolTable[ident];
     }
 };
 
@@ -883,7 +991,7 @@ public:
     Json::Value dump() const override {
         return exp->dump();
     }
-    void *toKoopa() const override {
-
+    int calculateExp() const override {
+        return exp->calculateExp();
     }
 };

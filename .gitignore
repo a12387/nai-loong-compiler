@@ -10,3 +10,5 @@ koopa.h
 .dockerignore
 *.sh
 *.json
+src/jsoncpp.cpp
+src/json

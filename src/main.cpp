@@ -39,18 +39,29 @@ int main(int argc, const char *argv[])
     Json::FastWriter json_writer;
     Json::Value root;
     root["CompUnit"] = ast->dump();
+    Json::Value symtab;
+    auto it = symbolTable.begin();
+    int i = 0;
+    while(it != symbolTable.end()) {
+        Json::Value sym;
+        sym["Name"] = it->first;
+        sym["Value"] = it->second;
+        it++;
+        symtab[i++] = sym;
+    }
+    root["Symbol Table"] = symtab;
 
     ofstream out("ast.json", ios::out | ios::trunc);
     out << json_writer.write(root);
-    // auto raw = ast->toKoopa();
+    auto raw = ast->toKoopa();
 
-    // if(mode[1] == 'k') {
-    //     koopa_program_t program;
-    //     auto ret = koopa_generate_raw_to_koopa((koopa_raw_program_t *)raw, &program);
-    //     assert(ret == KOOPA_EC_SUCCESS);
-    //     koopa_dump_to_file(program, output);
+    if(mode[1] == 'k') {
+        koopa_program_t program;
+        auto ret = koopa_generate_raw_to_koopa((koopa_raw_program_t *)raw, &program);
+        assert(ret == KOOPA_EC_SUCCESS);
+        koopa_dump_to_file(program, output);
         
-    // }
+    }
     // else {
     //     koopa_program_t program;
     //     koopa_error_code_t ret;
