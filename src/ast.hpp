@@ -8,6 +8,10 @@
 #include <koopa.h>
 #include <vector>
 #include <string.h>
+#include <algorithm>
+
+#include "json/json.h"
+
 using namespace std;
 
 static unordered_map<string, koopa_raw_binary_op_t> op_map = {
@@ -32,7 +36,7 @@ static void ** helper = nullptr;
 class BaseAST {
 public:
     virtual ~BaseAST() = default;
-    virtual void dump() const = 0;
+    virtual Json::Value dump() const = 0;
     virtual void* toKoopa() const { return nullptr; }
     virtual void* toKoopa(vector<const void *> &buffer) const { return nullptr; }
 };
@@ -41,10 +45,10 @@ class CompUnitAST : public BaseAST {
 public:
     unique_ptr<BaseAST> func_def;
 
-    void dump() const override {
-        cout << "CompUnit { ";
-        func_def->dump();
-        cout << " } \n";
+    Json::Value dump() const override {
+        Json::Value comp_unit;
+        comp_unit["FuncDef"] = func_def->dump();
+        return comp_unit;
     }
 
     void* toKoopa() const override {
@@ -71,12 +75,14 @@ public:
     string ident;
     unique_ptr<BaseAST> block;
 
-    void dump() const override {
-        cout << "FuncDef { ";
-        func_type->dump();
-        cout << "," + ident + ",";
-        block->dump();
-        cout << " } ";
+    Json::Value dump() const override {
+        Json::Value func_def;
+
+        func_def["FuncType"] = func_type->dump();
+        func_def["Ident"] = ident;
+        func_def["Block"] = block->dump();
+
+        return func_def;
     }
 
     void* toKoopa() const override {
@@ -116,8 +122,10 @@ class FuncTypeAST : public BaseAST {
 public:
     string type;
 
-    void dump() const override {
-        cout << "FuncType { " + type + " } ";
+    Json::Value dump() const override {
+        Json::Value func_type;
+        func_type["Type"] = type;
+        return func_type;
     }
 
     void* toKoopa() const override {
@@ -133,12 +141,16 @@ public:
 
 class BlockAST : public BaseAST {
 public:
-    unique_ptr<BaseAST> stmt;
+    unique_ptr<vector<unique_ptr<BaseAST> > >blockItem;
 
-    void dump() const override {
-        cout << "Block { ";
-        stmt->dump();
-        cout << " } ";
+    Json::Value dump() const override {
+        Json::Value block;
+        Json::Value blockItem_json;
+        for(int i = 0; i < blockItem->size(); i++) {
+            blockItem_json[i] = (*blockItem)[i]->dump();
+        }
+        block["BlockItem"] = blockItem_json;
+        return block;
     }
 
     void* toKoopa() const override {
@@ -157,7 +169,9 @@ public:
         };
 
         vector<const void *> buffer;
-        stmt->toKoopa(buffer);
+        for(auto &i : *blockItem) {
+            i->toKoopa(buffer);
+        }
         raw->insts.buffer = new const void *[buffer.size()];
         copy(buffer.begin(), buffer.end(), raw->insts.buffer);
         raw->insts.kind = KOOPA_RSIK_VALUE;
@@ -171,10 +185,12 @@ class StmtAST : public BaseAST {
 public:
     unique_ptr<BaseAST> exp;
 
-    void dump() const override {
-        cout << "Stmt { ";
-        exp->dump();
-        cout << " } ";
+    Json::Value dump() const override {
+        Json::Value stmt;
+        stmt["Exp"] = exp->dump();
+        Json::Value v;
+        v["Return"] = stmt;
+        return v;
     }
 
     void* toKoopa(vector<const void *> & buffer) const override {
@@ -205,10 +221,8 @@ class ExpAST : public BaseAST {
 public:
     unique_ptr<BaseAST> lOrExp;
 
-    void dump() const override {
-        cout << "Exp { ";
-        lOrExp->dump();
-        cout << " } ";
+    Json::Value dump() const override {
+        return lOrExp->dump();
     }
 
     void* toKoopa(vector<const void *> &buffer) const override {
@@ -220,10 +234,8 @@ class PrimaryExpAST1 : public BaseAST {
 public:
     unique_ptr<BaseAST> exp;
 
-    void dump() const override {
-        cout << "PrimaryExp1 { ";
-        exp->dump();
-        cout << " } ";
+    Json::Value dump() const override {
+        return exp->dump();
     }
     void* toKoopa(vector<const void *> &buffer) const override {
         return exp->toKoopa(buffer);
@@ -233,10 +245,10 @@ public:
 class PrimaryExpAST2: public BaseAST {
 public:
     int num;
-    void dump() const override {
-        cout << "PrimaryExp2 { ";
-        cout << num;
-        cout << " } ";
+    Json::Value dump() const override {
+        Json::Value primaryExp;
+        primaryExp["Number"] = num;
+        return primaryExp;
     }
     void* toKoopa(vector<const void *> &buffer) const override {
         auto raw = new koopa_raw_value_data_t;
@@ -259,14 +271,26 @@ public:
     }
 };
 
+class PrimaryExpAST3 : public BaseAST {
+public:
+    unique_ptr<BaseAST> lVal;
+
+    Json::Value dump() const override {
+        Json::Value primaryExp;
+        primaryExp["LVal"] = lVal->dump();
+        return primaryExp;
+    }
+    void *toKoopa() const override {
+
+    }
+};
+
 class UnaryExpAST1 : public BaseAST {
 public:
     unique_ptr<BaseAST> primaryExp;
 
-    void dump() const override {
-        cout << "UnaryExp1 { ";
-        primaryExp->dump();
-        cout << " } ";
+    Json::Value dump() const override {
+        return primaryExp->dump();
     }
     void* toKoopa(vector<const void *> &buffer) const override {
         return primaryExp->toKoopa(buffer);
@@ -278,11 +302,11 @@ public:
     string unaryOp;
     unique_ptr<BaseAST> unaryExp;
 
-    void dump() const override {
-        cout << "UnaryExp2 { ";
-        cout << "\'" + unaryOp + "\' ";
-        unaryExp->dump();
-        cout << " } ";
+    Json::Value dump() const override {
+        Json::Value unaryExp_json;
+        unaryExp_json["Operator"] = unaryOp;
+        unaryExp_json["UnaryExp"] = unaryExp->dump();
+        return unaryExp_json;
     }
     void* toKoopa(vector<const void *> &buffer) const override {
         if(unaryOp == "+")
@@ -332,10 +356,8 @@ class MulExpAST1 : public BaseAST {
 public:
     unique_ptr<BaseAST> unaryExp;
 
-    void dump() const override {
-        cout << "MulExp1 { ";
-        unaryExp->dump();
-        cout << " } ";
+    Json::Value dump() const override {
+        return unaryExp->dump();
     }
     void* toKoopa(vector<const void *> &buffer) const override {
         return unaryExp->toKoopa(buffer);
@@ -348,12 +370,12 @@ public:
     string mulOp;
     unique_ptr<BaseAST> unaryExp;
 
-    void dump() const override {
-        cout << "MulExp2 { ";
-        mulExp->dump();
-        cout << " " << mulOp << " ";
-        unaryExp->dump();
-        cout << " } ";
+    Json::Value dump() const override {
+        Json::Value mulExp_json;
+        mulExp_json["MulExp"] = mulExp->dump();
+        mulExp_json["Operator"] = mulOp;
+        mulExp_json["UnaryExp"] = unaryExp->dump();
+        return mulExp_json;
     }
     void* toKoopa(vector<const void *> &buffer) const override {
         auto raw = new koopa_raw_value_data_t;
@@ -390,10 +412,8 @@ class AddExpAST1 : public BaseAST {
 public:
     unique_ptr<BaseAST> mulExp;
 
-    void dump() const override {
-        cout << "AddExp1 { ";
-        mulExp->dump();
-        cout << " } ";
+    Json::Value dump() const override {
+        return mulExp->dump();
     }
     void* toKoopa(vector<const void*> &buffer) const override {
         return mulExp->toKoopa(buffer);
@@ -406,12 +426,12 @@ public:
     string addOp;
     unique_ptr<BaseAST> mulExp;
 
-    void dump() const override {
-        cout << "AddExp2 { ";
-        addExp->dump();
-        cout << " " << addOp << " ";
-        mulExp->dump();
-        cout << " } ";
+    Json::Value dump() const override {
+        Json::Value addExp_json;
+        addExp_json["AddExp"] = addExp->dump();
+        addExp_json["Operator"] = addOp;
+        addExp_json["MulExp"] = mulExp->dump();
+        return addExp_json;
     }
     void* toKoopa(vector<const void*> &buffer) const override {
         auto raw = new koopa_raw_value_data_t;
@@ -448,10 +468,8 @@ class RelExpAST1 : public BaseAST {
 public:
     unique_ptr<BaseAST> addExp;
 
-    void dump() const override {
-        cout << "RelExp1 { ";
-        addExp->dump();
-        cout << " } ";
+    Json::Value dump() const override {
+        return addExp->dump();
     }
     void* toKoopa(vector<const void *> &buffer) const override {
         return addExp->toKoopa(buffer);
@@ -464,12 +482,12 @@ public:
     string relOp;
     unique_ptr<BaseAST> addExp;
     
-    void dump() const override {
-        cout << "RelExp2 { ";
-        addExp->dump();
-        cout << " " << relOp << " ";
-        addExp->dump();
-        cout << " } ";
+    Json::Value dump() const override {
+        Json::Value relExp_json;
+        relExp_json["RelExp"] = relExp->dump();
+        relExp_json["Operator"] = relOp;
+        relExp_json["AddExp"] = addExp->dump();
+        return relExp_json;
     }
     void* toKoopa(vector<const void *> &buffer) const override {
         auto raw = new koopa_raw_value_data_t;
@@ -507,10 +525,8 @@ class EqExpAST1 : public BaseAST {
 public:
     unique_ptr<BaseAST> relExp;
 
-    void dump() const override {
-        cout << "EqExp1 { ";
-        relExp->dump();
-        cout << " } ";
+    Json::Value dump() const override {
+        return relExp->dump();
     }
     void* toKoopa(vector<const void *> &buffer) const override {
         return relExp->toKoopa(buffer);
@@ -523,12 +539,12 @@ public:
     string eqOp;
     unique_ptr<BaseAST> relExp;
 
-    void dump() const override {
-        cout << "EqExp2 { ";
-        eqExp->dump();
-        cout << " " << eqOp << " ";
-        relExp->dump();
-        cout << " } ";
+    Json::Value dump() const override {
+        Json::Value eqExp_json;
+        eqExp_json["EqExp"] = eqExp->dump();
+        eqExp_json["Operator"] = eqOp;
+        eqExp_json["RelExp"] = relExp->dump();
+        return eqExp_json;
     }
     void* toKoopa(vector<const void *> &buffer) const override {
         auto raw = new koopa_raw_value_data_t;
@@ -565,10 +581,8 @@ class LAndExpAST1 : public BaseAST {
 public:
     unique_ptr<BaseAST> eqExp;
 
-    void dump() const override {
-        cout << "LAndExp1 { ";
-        eqExp->dump();
-        cout << " } ";
+    Json::Value dump() const override {
+        return eqExp->dump();
     }
     void* toKoopa(vector<const void *> &buffer) const override {
         return eqExp->toKoopa(buffer);
@@ -580,12 +594,12 @@ public:
     unique_ptr<BaseAST> lAndExp;
     unique_ptr<BaseAST> eqExp;
 
-    void dump() const override {
-        cout << "LAndExp2 { ";
-        lAndExp->dump();
-        cout << " && ";
-        eqExp->dump();
-        cout << " } ";
+    Json::Value dump() const override {
+        Json::Value lAndExp_json;
+        lAndExp_json["LAndExp"] = lAndExp->dump();
+        lAndExp_json["Operator"] = "&&";
+        lAndExp_json["EqExp"] = eqExp->dump();
+        return lAndExp_json;
     }
     void* toKoopa(vector<const void *> &buffer) const override {
         auto ty = new koopa_raw_type_kind_t;
@@ -688,10 +702,8 @@ class LOrExpAST1 : public BaseAST {
 public:
     unique_ptr<BaseAST> lAndExp;
 
-    void dump() const override {
-        cout << "LOrExp1 { ";
-        lAndExp->dump();
-        cout << " } ";
+    Json::Value dump() const override {
+        return lAndExp->dump();
     }
     void* toKoopa(vector<const void *> &buffer) const override {
         return lAndExp->toKoopa(buffer);
@@ -703,12 +715,12 @@ public:
     unique_ptr<BaseAST> lOrExp;
     unique_ptr<BaseAST> lAndExp;
 
-    void dump() const override {
-        cout << "LOrExp2 { ";
-        lOrExp->dump();
-        cout << " || ";
-        lAndExp->dump();
-        cout << " } ";
+    Json::Value dump() const override {
+        Json::Value lOrExp_json;
+        lOrExp_json["LOrExp"] = lOrExp->dump();
+        lOrExp_json["Operator"] = "||";
+        lOrExp_json["LAndExp"] = lAndExp->dump();
+        return lOrExp_json;
     }
     void* toKoopa(vector<const void *> &buffer) const override {
         auto ty = new koopa_raw_type_kind_t;
@@ -771,5 +783,107 @@ public:
         buffer.push_back(raw);
 
         return raw;
+    }
+};
+
+class DeclAST : public BaseAST {
+public:
+    unique_ptr<BaseAST> constDecl;
+
+    Json::Value dump() const override {
+        Json::Value v;
+        v["ConstDecl"] = constDecl->dump();
+        return v;
+    }
+    void *toKoopa() const override {
+
+    }
+};
+
+class ConstDeclAST : public BaseAST {
+public:
+    unique_ptr<BaseAST> bType;
+    unique_ptr<vector<unique_ptr<BaseAST> > > constDef;
+
+    Json::Value dump() const override {
+        Json::Value v;
+        v["BType"] = bType->dump();
+        Json::Value defs;
+        for(int i = 0; i < constDef->size(); i++) {
+            defs[i] = (*constDef)[i]->dump();
+        }
+        v["ConstDef"] = defs;
+        return v;
+    }
+    void *toKoopa() const override {
+
+    }
+};
+
+class BTypeAST : public BaseAST {
+public:
+    string type;
+
+    Json::Value dump() const override {
+        Json::Value v;
+        v["Type"] = type;
+        return v;
+    }
+    void *toKoopa() const override {
+
+    }
+};
+
+class ConstDefAST : public BaseAST {
+public:
+    string ident;
+    unique_ptr<BaseAST> constInitVal;
+
+    Json::Value dump() const override {
+        Json::Value v;
+        v["Ident"] = ident;
+        v["ConstInitVal"] = constInitVal->dump();
+        return v;
+    }
+    void *toKoopa() const override {
+
+    }
+};
+
+class ConstInitValAST : public BaseAST {
+public:
+    unique_ptr<BaseAST> constExp;
+
+    Json::Value dump() const override {
+        return constExp->dump();
+    }
+    void *toKoopa() const override {
+
+    }
+};
+
+class LValAST : public BaseAST {
+public:
+    string ident;
+
+    Json::Value dump() const override {
+        Json::Value v;
+        v["Ident"] = ident;
+        return v;
+    }
+    void *toKoopa() const override {
+
+    }
+};
+
+class ConstExpAST : public BaseAST {
+public:
+    unique_ptr<BaseAST> exp;
+
+    Json::Value dump() const override {
+        return exp->dump();
+    }
+    void *toKoopa() const override {
+
     }
 };

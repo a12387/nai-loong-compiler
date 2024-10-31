@@ -33,16 +33,20 @@ using namespace std;
   std::string *str_val;
   int int_val;
   BaseAST *ast_val;
+  vector<unique_ptr<BaseAST> >  *vec_val;
 }
 
 // lexer 返回的所有 token 种类的声明
 // 注意 IDENT 和 INT_CONST 会返回 token 的值, 分别对应 str_val 和 int_val
-%token INT RETURN
+%token INT RETURN CONST
 %token <str_val> IDENT
 %token <int_val> INT_CONST
 
 // 非终结符的类型定义
-%type <ast_val> FuncDef FuncType Block Stmt Exp PrimaryExp UnaryExp AddExp MulExp RelExp EqExp LAndExp LOrExp
+%type <ast_val> FuncDef FuncType Block Stmt
+%type <ast_val> Exp PrimaryExp UnaryExp AddExp MulExp RelExp EqExp LAndExp LOrExp
+%type <ast_val> Decl ConstDecl BType ConstDef ConstInitVal BlockItem LVal ConstExp
+%type <vec_val> ConstMultiDef BlockMultiItem
 %type <int_val> Number
 %type <str_val> UnaryOp MulOp AddOp RelOp EqOp
 
@@ -91,10 +95,32 @@ FuncType
   ;
 
 Block
-  : '{' Stmt '}' {
+  : '{' BlockMultiItem '}' {
     auto ast = new BlockAST();
-    ast->stmt = unique_ptr<BaseAST>($2);
+    ast->blockItem = unique_ptr<vector<unique_ptr<BaseAST> > >($2);
     $$ = ast;
+  }
+  ;
+
+BlockMultiItem
+  : BlockMultiItem BlockItem {
+    auto vec = $1;
+    vec->push_back(unique_ptr<BaseAST>($2));
+    $$ = vec;
+  }
+  | BlockItem {
+    auto vec = new vector<unique_ptr<BaseAST> >;
+    vec->push_back(unique_ptr<BaseAST>($1));
+    $$ = vec;
+  }
+  ;
+
+BlockItem // 没有必要为它定义AST
+  : Decl {
+    $$ = $1;
+  }
+  | Stmt {
+    $$ = $1;
   }
   ;
 
@@ -123,6 +149,11 @@ PrimaryExp
   | Number {
     auto ast = new PrimaryExpAST2();
     ast->num = $1;
+    $$ = ast;
+  }
+  | LVal {
+    auto ast = new PrimaryExpAST3();
+    ast->lVal = unique_ptr<BaseAST>($1);
     $$ = ast;
   }
   ;
@@ -291,6 +322,78 @@ LOrExp
     $$ = ast;
   }
   ;
+
+Decl
+  : ConstDecl {
+    auto ast = new DeclAST();
+    ast->constDecl = unique_ptr<BaseAST>($1);
+    $$ = ast;
+  }
+  ;
+
+ConstDecl
+  : CONST BType ConstMultiDef ';' {
+    auto ast = new ConstDeclAST();
+    ast->bType = unique_ptr<BaseAST>($2);
+    ast->constDef = unique_ptr<vector<unique_ptr<BaseAST> > >($3);
+    $$ = ast;
+  }
+  ;
+
+ConstMultiDef
+  : ConstMultiDef ',' ConstDef {
+    auto vec = $1;
+    vec->push_back(unique_ptr<BaseAST>($3));
+    $$ = vec;
+  }
+  | ConstDef {
+    auto vec = new vector<unique_ptr<BaseAST> >;
+    vec->push_back(unique_ptr<BaseAST>($1));
+    $$ = vec;
+  }
+  ;
+
+BType
+  : INT {
+    auto ast = new BTypeAST();
+    ast->type = "int";
+    $$ = ast;
+  }
+  ;
+
+ConstDef
+  : IDENT '=' ConstInitVal {
+    auto ast = new ConstDefAST();
+    ast->ident = *unique_ptr<string>($1);
+    ast->constInitVal = unique_ptr<BaseAST>($3);
+    $$ = ast;
+  }
+  ;
+
+ConstInitVal
+  : ConstExp {
+    auto ast = new ConstInitValAST();
+    ast->constExp = unique_ptr<BaseAST>($1);
+    $$ = ast;
+  }
+  ;
+
+LVal
+  : IDENT {
+    auto ast = new LValAST();
+    ast->ident = *unique_ptr<string>($1);
+    $$ = ast;
+  }
+  ;
+
+ConstExp 
+  : Exp {
+    auto ast = new ConstExpAST();
+    ast->exp = unique_ptr<BaseAST>($1);
+    $$ = ast;
+  }
+  ;
+
 
 %%
 
