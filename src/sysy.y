@@ -45,8 +45,8 @@ using namespace std;
 // 非终结符的类型定义
 %type <ast_val> FuncDef FuncType Block Stmt
 %type <ast_val> Exp PrimaryExp UnaryExp AddExp MulExp RelExp EqExp LAndExp LOrExp
-%type <ast_val> Decl ConstDecl BType ConstDef ConstInitVal BlockItem LVal ConstExp
-%type <vec_val> ConstMultiDef BlockMultiItem
+%type <ast_val> Decl ConstDecl BType ConstDef ConstInitVal BlockItem LVal ConstExp VarDecl VarDef InitVal
+%type <vec_val> ConstMultiDef BlockMultiItem VarMultiDef
 %type <int_val> Number
 %type <str_val> UnaryOp MulOp AddOp RelOp EqOp
 
@@ -126,8 +126,14 @@ BlockItem // 没有必要为它定义AST
 
 Stmt
   : RETURN Exp ';' {
-    auto ast = new StmtAST();
+    auto ast = new StmtAST1();
     ast->exp = unique_ptr<BaseAST>($2);
+    $$ = ast;
+  }
+  | LVal '=' Exp ';' {
+    auto ast = new StmtAST2();
+    ast->lVal = unique_ptr<BaseAST>($1);
+    ast->exp = unique_ptr<BaseAST>($3);
     $$ = ast;
   }
   ;
@@ -325,9 +331,13 @@ LOrExp
 
 Decl
   : ConstDecl {
-    auto ast = new DeclAST();
+    auto ast = new DeclAST1();
     ast->constDecl = unique_ptr<BaseAST>($1);
     $$ = ast;
+  }
+  | VarDecl {
+    auto ast = new DeclAST2();
+    ast->varDecl = unique_ptr<BaseAST>($1);
   }
   ;
 
@@ -377,6 +387,47 @@ ConstInitVal
     $$ = ast;
   }
   ;
+
+VarDecl
+  : BType VarMultiDef ';' {
+    auto ast = new VarDeclAST();
+    ast->bType = unique_ptr<BaseAST>($1);
+    ast->varDef = unique_ptr<vector<unique_ptr<BaseAST> > >($2);
+    $$ = ast;
+  }
+  ;
+
+VarMultiDef
+  : VarMultiDef ',' VarDef {
+    auto vec = $1;
+    vec->push_back(unique_ptr<BaseAST>($3));
+    $$ = vec;
+  }
+  | VarDef {
+    auto vec = new vector<unique_ptr<BaseAST> >;
+    vec->push_back(unique_ptr<BaseAST>($1));
+    $$ = vec;
+  }
+  ;
+
+VarDef 
+  : IDENT {
+    auto ast = new VarDefAST1();
+    ast->ident = *unique_ptr<string>($1);
+    $$ = ast;
+  }
+  | IDENT '=' InitVal {
+    auto ast = new VarDefAST2();
+    ast->ident = *unique_ptr<string>($1);
+    ast->initVal = unique_ptr<BaseAST>($3);
+    $$ = ast;
+  }
+  ;
+
+InitVal
+  : Exp {
+
+  }
 
 LVal
   : IDENT {
