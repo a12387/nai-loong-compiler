@@ -171,9 +171,15 @@ public:
         };
 
         vector<const void *> buffer;
-        for(int i = 0; i < blockItem->size(); i++) {
-            (*blockItem)[i]->toKoopa(buffer);
+        int i = 0;
+        for(; i < blockItem->size(); i++) {
+            auto ptr = (koopa_raw_value_data_t *)(*blockItem)[i]->toKoopa(buffer);
+            if(ptr != nullptr && ptr->kind.tag == KOOPA_RVT_RETURN) {
+                i++;
+                break;
+            }
         }
+        
         raw->insts.buffer = new const void *[buffer.size()];
         copy(buffer.begin(), buffer.end(), raw->insts.buffer);
         raw->insts.kind = KOOPA_RSIK_VALUE;
@@ -210,7 +216,7 @@ public:
             KOOPA_RSIK_VALUE
         };
         buffer.push_back(raw);
-        return nullptr;
+        return raw;
     }
 };
 
@@ -1146,6 +1152,7 @@ public:
                 exit(1);
             }
         }
+        return nullptr;
     }
     void *toKoopa(vector<const void *> &buffer) const override {
         //作为右值引用一个符号（如果是变量，必须先Load）
