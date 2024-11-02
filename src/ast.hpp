@@ -171,13 +171,45 @@ public:
         };
 
         vector<const void *> buffer;
-        int i = 0;
-        for(; i < blockItem->size(); i++) {
-            auto ptr = (koopa_raw_value_data_t *)(*blockItem)[i]->toKoopa(buffer);
-            if(ptr != nullptr && ptr->kind.tag == KOOPA_RVT_RETURN) {
-                i++;
+        for(int i = 0; i < blockItem->size(); i++) {
+            (*blockItem)[i]->toKoopa(buffer);
+            if(!buffer.empty() && ((koopa_raw_value_data_t*)buffer.back())->kind.tag == KOOPA_RVT_RETURN) {
                 break;
             }
+        }
+        if(buffer.empty() || ((koopa_raw_value_data_t*)buffer.back())->kind.tag != KOOPA_RVT_RETURN) {
+            auto ret = new koopa_raw_value_data_t;
+            ret->kind.tag = KOOPA_RVT_RETURN;
+
+            auto value = new koopa_raw_value_data_t;
+            value->kind.tag = KOOPA_RVT_INTEGER;
+            value->kind.data.integer.value = 0;
+            value->name = nullptr;
+
+            auto ty = new koopa_raw_type_kind_t;
+            ty->tag = KOOPA_RTT_INT32;
+            value->ty = ty;
+
+            value->used_by = {
+                new const void*,
+                1,
+                KOOPA_RSIK_VALUE
+            };
+            value->used_by.buffer[0] = ret;
+
+            ret->kind.data.ret.value = value;
+            ret->name = nullptr;
+
+            auto tyret = new koopa_raw_type_kind_t;
+            tyret->tag = KOOPA_RTT_UNIT;
+            ret->ty = tyret;
+
+            ret->used_by = {
+                nullptr,
+                0,
+                KOOPA_RSIK_VALUE
+            };
+            buffer.push_back(ret);
         }
         
         raw->insts.buffer = new const void *[buffer.size()];
@@ -208,7 +240,11 @@ public:
         auto value = (koopa_raw_value_data_t *)exp->toKoopa(buffer);
         addItemToSlice(value->used_by, raw);
         raw->kind.data.ret.value = value;
-        raw->ty = value->ty;
+        
+        auto ty = new koopa_raw_type_kind_t;
+        ty->tag = KOOPA_RTT_UNIT;
+        raw->ty = ty;
+
         raw->name = nullptr;
         raw->used_by = {
             nullptr,
