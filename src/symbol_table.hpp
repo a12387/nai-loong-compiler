@@ -6,8 +6,8 @@
 using namespace std;
 
 enum ItemType{
-    CONST,
-    VAR
+    SYMBOLTABLE_ITEM_CONST,
+    SYMBOLTABLE_ITEM_VAR
 };
 
 struct Item {
@@ -17,8 +17,8 @@ public:
         int c;
         koopa_raw_value_data_t *v;
     } data;
-    Item(int c) { type = CONST; data.c = c; }
-    Item(koopa_raw_value_data_t *v) { type = VAR; data.v = v; }
+    Item(int c) { type = SYMBOLTABLE_ITEM_CONST; data.c = c; }
+    Item(koopa_raw_value_data_t *v) { type = SYMBOLTABLE_ITEM_VAR; data.v = v; }
 };
 
 class SymbolTable {
@@ -27,5 +27,5 @@ public:
     static void addItem(string ident, int c);
     static void addItem(string ident, koopa_raw_value_data_t *v);
 private:
-    static unordered_map<string, Item> table;
+    inline static unordered_map<string, Item> table = {};
 };

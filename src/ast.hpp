@@ -1167,11 +1167,11 @@ public:
     void *toKoopa() const override {
         //作为左值引用一个符号
         auto i = SymbolTable::getItem(ident);
-        if(i.type == CONST) {
+        if(i.type == SYMBOLTABLE_ITEM_CONST) {
             cerr << "lvalue required as left operand of assignment" << endl;
             exit(1);
         }
-        else if(i.type == VAR) {
+        else if(i.type == SYMBOLTABLE_ITEM_VAR) {
             return i.data.v;
         }
         return nullptr;
@@ -1179,7 +1179,7 @@ public:
     void *toKoopa(vector<const void *> &buffer) const override {
         //作为右值引用一个符号（如果是变量，必须先Load）
         auto i = SymbolTable::getItem(ident);
-        if(i.type == CONST) {
+        if(i.type == SYMBOLTABLE_ITEM_CONST) {
             auto raw = new koopa_raw_value_data_t;
             auto ty = new koopa_raw_type_kind_t;
             ty->tag = KOOPA_RTT_INT32;
@@ -1195,7 +1195,7 @@ public:
             };
             return raw;
         }
-        else if (i.type == VAR) {
+        else if (i.type == SYMBOLTABLE_ITEM_VAR) {
             auto raw = new koopa_raw_value_data_t;
             auto ty = new koopa_raw_type_kind_t;
             ty->tag = KOOPA_RTT_INT32;
@@ -1220,7 +1220,7 @@ public:
     }
     int calculateExp() const override {
         auto i = SymbolTable::getItem(ident);
-        if(i.type == CONST) 
+        if(i.type == SYMBOLTABLE_ITEM_CONST) 
             return i.data.c;
         else {
             //常量求值里不能有查询到变量

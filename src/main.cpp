@@ -37,20 +37,6 @@ int main(int argc, const char *argv[])
         root["CompUnit"] = ast->dump();
         
         auto raw = ast->toKoopa();
-        Json::Value symtab;
-        auto it = symbolTable.begin();
-        int i = 0;
-        while(it != symbolTable.end()) {
-            Json::Value sym;
-            sym["Name"] = it->first;
-            if(auto p = get_if<int>(&(it->second)))
-                sym["ConstValue"] = *p;
-            else if(auto p = get_if<void *>(&(it->second)))
-                sym["VarPtr"] = *p;
-            it++;
-            symtab[i++] = sym;
-        }
-        root["Symbol Table"] = symtab;
 
         ofstream out("ast.json", ios::out | ios::trunc);
         out << json_writer.write(root);
