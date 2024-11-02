@@ -11,6 +11,7 @@
 #include <algorithm>
 #include <variant>
 #include "helper.hpp"
+#include "symbol_table.hpp"
 #include "json/json.h"
 
 using namespace std;
@@ -31,8 +32,6 @@ static unordered_map<string, koopa_raw_binary_op_t> op_map = {
     {"&&", KOOPA_RBO_AND},
     {"||", KOOPA_RBO_OR}
 };
-
-static unordered_map<string, term> symbolTable;
 
 class BaseAST {
 public:
@@ -1015,13 +1014,7 @@ public:
         return v;
     }
     void *toKoopa() const override {
-        int *p;
-        if(symbolTable.find(ident) != symbolTable.end() && (p = get_if<int>(&symbolTable[ident]))) {
-            printf("%p", p);
-            assert(false);
-        }
-        term t = constInitVal->calculateExp();
-        symbolTable.insert(make_pair(ident, t));
+        SymbolTable::addItem(ident, constInitVal->calculateExp());
         return nullptr;
     }
 };
@@ -1075,8 +1068,6 @@ public:
         return v;
     }
     void *toKoopa(vector<const void *> &buffer) const override {
-        if(symbolTable.find(ident) != symbolTable.end() && get_if<void *>(&symbolTable[ident]))
-            assert(false);
         auto raw = new koopa_raw_value_data_t;
 
         raw->kind.tag = KOOPA_RVT_ALLOC;
@@ -1090,8 +1081,7 @@ public:
         };
         buffer.push_back(raw);
 
-        term t = raw;
-        symbolTable.insert(make_pair(ident, t));
+        SymbolTable::addItem(ident, raw);
 
         return raw;
     }
@@ -1109,8 +1099,6 @@ public:
         return v;
     }
     void *toKoopa(vector<const void *> &buffer) const override {
-        if(symbolTable.find(ident) != symbolTable.end() && get_if<void *>(&symbolTable[ident]))
-            assert(false);
         auto raw1 = new koopa_raw_value_data_t;
     
         raw1->kind.tag = KOOPA_RVT_ALLOC;
@@ -1148,8 +1136,7 @@ public:
 
         buffer.push_back(raw2);
 
-        term t = raw1;
-        symbolTable.insert(make_pair(ident, t));
+        SymbolTable::addItem(ident, raw1);
 
         return raw1;
         
@@ -1179,71 +1166,67 @@ public:
     }
     void *toKoopa() const override {
         //作为左值引用一个符号
-        if(symbolTable.find(ident) != symbolTable.end()) {
-            if(auto p = get_if<void *>(&symbolTable[ident])) {
-                return *p;
-            }
-            if(auto p = get_if<int>(&symbolTable[ident])) {
-                cerr << "lvalue required as left operand of assignment" << endl;
-                exit(1);
-            }
+        auto i = SymbolTable::getItem(ident);
+        if(i.type == CONST) {
+            cerr << "lvalue required as left operand of assignment" << endl;
+            exit(1);
+        }
+        else if(i.type == VAR) {
+            return i.data.v;
         }
         return nullptr;
     }
     void *toKoopa(vector<const void *> &buffer) const override {
         //作为右值引用一个符号（如果是变量，必须先Load）
-        if(symbolTable.find(ident) != symbolTable.end()) {
-            if(auto p = get_if<int>(&symbolTable[ident])) {
-                auto raw = new koopa_raw_value_data_t;
-                auto ty = new koopa_raw_type_kind_t;
-                ty->tag = KOOPA_RTT_INT32;
+        auto i = SymbolTable::getItem(ident);
+        if(i.type == CONST) {
+            auto raw = new koopa_raw_value_data_t;
+            auto ty = new koopa_raw_type_kind_t;
+            ty->tag = KOOPA_RTT_INT32;
 
-                raw->kind.tag = KOOPA_RVT_INTEGER;
-                raw->kind.data.integer.value = *p;
-                raw->name = nullptr;
-                raw->ty = ty;
-                raw->used_by = {
-                    nullptr,
-                    0,
-                    KOOPA_RSIK_VALUE
-                };
-                return raw;
-            }
-            else if (auto p = get_if<void *>(&symbolTable[ident])) {
-                auto raw = new koopa_raw_value_data_t;
-                auto ty = new koopa_raw_type_kind_t;
-                ty->tag = KOOPA_RTT_INT32;
-
-                raw->kind.tag = KOOPA_RVT_LOAD;
-                auto src = (koopa_raw_value_data_t *)(*p);
-                addItemToSlice(src->used_by, raw);
-                raw->kind.data.load.src = src;
-                raw->name = nullptr;
-                raw->ty = ty;
-                raw->used_by = {
-                    nullptr,
-                    0,
-                    KOOPA_RSIK_VALUE
-                };
-                buffer.push_back(raw);
-
-                return raw;
-            }
+            raw->kind.tag = KOOPA_RVT_INTEGER;
+            raw->kind.data.integer.value = i.data.c;
+            raw->name = nullptr;
+            raw->ty = ty;
+            raw->used_by = {
+                nullptr,
+                0,
+                KOOPA_RSIK_VALUE
+            };
+            return raw;
         }
-        else  {
-            cerr << "undeclared identifier" << endl;
-            exit(1);
-            // Make compiler shut up
+        else if (i.type == VAR) {
+            auto raw = new koopa_raw_value_data_t;
+            auto ty = new koopa_raw_type_kind_t;
+            ty->tag = KOOPA_RTT_INT32;
+
+            raw->kind.tag = KOOPA_RVT_LOAD;
+            auto src = i.data.v;
+            addItemToSlice(src->used_by, raw);
+            raw->kind.data.load.src = src;
+            raw->name = nullptr;
+            raw->ty = ty;
+            raw->used_by = {
+                nullptr,
+                0,
+                KOOPA_RSIK_VALUE
+            };
+            buffer.push_back(raw);
+
+            return raw;
         }
+        
         return 0;
     }
     int calculateExp() const override {
-        int *p;
-        if(symbolTable.find(ident) != symbolTable.end() && (p = get_if<int>(&symbolTable[ident]))) {
-            return *p;
+        auto i = SymbolTable::getItem(ident);
+        if(i.type == CONST) 
+            return i.data.c;
+        else {
+            //常量求值里不能有查询到变量
+            cerr << "Required no variables in const declaration" << endl;
+            exit(1);
         }
-        //常量求值里不能有查询到变量
-        assert(false);
     }
 };
 
