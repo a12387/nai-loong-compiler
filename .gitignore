@@ -1,10 +1,6 @@
 *.DS_Store
 /build
 /.vscode
-*.c
-*.koopa
-*.o
-*.exe
 koopa.h
 /.devcontainer
 .dockerignore
@@ -12,3 +8,5 @@ koopa.h
 *.json
 src/jsoncpp.cpp
 src/json
+kira
+hello*

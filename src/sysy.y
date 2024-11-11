@@ -59,8 +59,7 @@ using namespace std;
 // $1 指代规则里第一个符号的返回值, 也就是 FuncDef 的返回值
 CompUnit
   : FuncDef {
-    auto comp_unit = make_unique<CompUnitAST>();
-    comp_unit->func_def = unique_ptr<BaseAST>($1);
+    auto comp_unit = make_unique<CompUnitAST>($1);
     ast = move(comp_unit);
   }
   ;
@@ -77,10 +76,7 @@ CompUnit
 // 这种写法会省下很多内存管理的负担
 FuncDef
   : FuncType IDENT '(' ')' Block {
-    auto ast = new FuncDefAST();
-    ast->func_type = unique_ptr<BaseAST>($1);
-    ast->ident = *unique_ptr<string>($2);
-    ast->block = unique_ptr<BaseAST>($5);
+    auto ast = new FuncDefAST($1, $2->c_str(), $5);
     $$ = ast;
   }
   ;
@@ -88,16 +84,14 @@ FuncDef
 // 同上, 不再解释
 FuncType
   : INT {
-    auto ast = new FuncTypeAST();
-    ast->type = "int";
+    auto ast = new FuncTypeAST("int");
     $$ = ast;
   }
   ;
 
 Block
   : '{' BlockMultiItem '}' {
-    auto ast = new BlockAST();
-    ast->blockItem = unique_ptr<vector<unique_ptr<BaseAST> > >($2);
+    auto ast = new BlockAST($2);
     $$ = ast;
   }
   ;
@@ -126,40 +120,33 @@ BlockItem // 没有必要为它定义AST
 
 Stmt
   : RETURN Exp ';' {
-    auto ast = new StmtAST1();
-    ast->exp = unique_ptr<BaseAST>($2);
+    auto ast = new StmtAST1($2);
     $$ = ast;
   }
   | LVal '=' Exp ';' {
-    auto ast = new StmtAST2();
-    ast->lVal = unique_ptr<BaseAST>($1);
-    ast->exp = unique_ptr<BaseAST>($3);
+    auto ast = new StmtAST2($1, $3);
     $$ = ast;
   }
   ;
 
 Exp
   : LOrExp {
-    auto ast = new ExpAST();
-    ast->lOrExp = unique_ptr<BaseAST>($1);
+    auto ast = new ExpAST($1);
     $$ = ast;
   }
   ;
 
 PrimaryExp
   : '(' Exp ')' {
-    auto ast = new PrimaryExpAST1();
-    ast->exp = unique_ptr<BaseAST>($2);
+    auto ast = new PrimaryExpAST1($2);
     $$ = ast;
   }
   | Number {
-    auto ast = new PrimaryExpAST2();
-    ast->num = $1;
+    auto ast = new PrimaryExpAST2($1);
     $$ = ast;
   }
   | LVal {
-    auto ast = new PrimaryExpAST3();
-    ast->lVal = unique_ptr<BaseAST>($1);
+    auto ast = new PrimaryExpAST3($1);
     $$ = ast;
   }
   ;
@@ -172,14 +159,11 @@ Number
 
 UnaryExp
   : PrimaryExp {
-    auto ast = new UnaryExpAST1();
-    ast->primaryExp = unique_ptr<BaseAST>($1);
+    auto ast = new UnaryExpAST1($1);
     $$ = ast;
   }
   | UnaryOp UnaryExp {
-    auto ast = new UnaryExpAST2();
-    ast->unaryOp = *unique_ptr<string>($1);
-    ast->unaryExp = unique_ptr<BaseAST>($2);
+    auto ast = new UnaryExpAST2($1->c_str(), $2);
     $$ = ast;
   }
   ;
@@ -198,15 +182,11 @@ UnaryOp
 
 MulExp
   : UnaryExp {
-    auto ast = new MulExpAST1();
-    ast->unaryExp = unique_ptr<BaseAST>($1);
+    auto ast = new MulExpAST1($1);
     $$ = ast;
   }
   | MulExp MulOp UnaryExp {
-    auto ast = new MulExpAST2();
-    ast->mulExp = unique_ptr<BaseAST>($1);
-    ast->mulOp = *unique_ptr<string>($2);
-    ast->unaryExp = unique_ptr<BaseAST>($3);
+    auto ast = new MulExpAST2($1, $2->c_str(), $3);
     $$ = ast;
   }
   ;
@@ -225,15 +205,11 @@ MulOp
 
 AddExp 
   : MulExp {
-    auto ast = new AddExpAST1();
-    ast->mulExp = unique_ptr<BaseAST>($1);
+    auto ast = new AddExpAST1($1);
     $$ = ast;
   }
   | AddExp AddOp MulExp {
-    auto ast = new AddExpAST2();
-    ast->addExp = unique_ptr<BaseAST>($1);
-    ast->addOp = *unique_ptr<string>($2);
-    ast->mulExp = unique_ptr<BaseAST>($3);
+    auto ast = new AddExpAST2($1, $2->c_str(), $3);
     $$ = ast;
   }
   ;
@@ -249,15 +225,11 @@ AddOp
 
 RelExp
   : AddExp {
-    auto ast = new RelExpAST1();
-    ast->addExp = unique_ptr<BaseAST>($1);
-    $$ = $1;
+    auto ast = new RelExpAST1($1);
+    $$ = ast;
   }
   | RelExp RelOp AddExp {
-    auto ast = new RelExpAST2();
-    ast->relExp = unique_ptr<BaseAST>($1);
-    ast->relOp = *unique_ptr<string>($2);
-    ast->addExp = unique_ptr<BaseAST>($3);
+    auto ast = new RelExpAST2($1, $2->c_str(), $3);
     $$ = ast;
   }
   ;
@@ -279,15 +251,11 @@ RelOp
 
 EqExp
   : RelExp {
-    auto ast = new EqExpAST1();
-    ast->relExp = unique_ptr<BaseAST>($1);
+    auto ast = new EqExpAST1($1);
     $$ = ast;
   }
   | EqExp EqOp RelExp {
-    auto ast = new EqExpAST2();
-    ast->eqExp = unique_ptr<BaseAST>($1);
-    ast->eqOp = *unique_ptr<string>($2);
-    ast->relExp = unique_ptr<BaseAST>($3);
+    auto ast = new EqExpAST2($1, $2->c_str(), $3);
     $$ = ast;
   }
   ;
@@ -303,49 +271,40 @@ EqOp
 
 LAndExp 
   : EqExp {
-    auto ast = new LAndExpAST1();
-    ast->eqExp = unique_ptr<BaseAST>($1);
+    auto ast = new LAndExpAST1($1);
     $$ = ast;
   }
   | LAndExp '&' '&' EqExp {
-    auto ast = new LAndExpAST2();
-    ast->lAndExp = unique_ptr<BaseAST>($1);
-    ast->eqExp = unique_ptr<BaseAST>($4);
+    auto ast = new LAndExpAST2($1, $4);
     $$ = ast;
   }
   ;
 
 LOrExp
   : LAndExp {
-    auto ast = new LOrExpAST1();
-    ast->lAndExp = unique_ptr<BaseAST>($1);
+    auto ast = new LOrExpAST1($1);
     $$ = ast;
   }
   | LOrExp '|' '|' LAndExp {
-    auto ast = new LOrExpAST2();
-    ast->lOrExp = unique_ptr<BaseAST>($1);
-    ast->lAndExp = unique_ptr<BaseAST>($4);
+    auto ast = new LOrExpAST2($1, $4);
     $$ = ast;
   }
   ;
 
 Decl
   : ConstDecl {
-    auto ast = new DeclAST1();
-    ast->constDecl = unique_ptr<BaseAST>($1);
+    auto ast = new DeclAST1($1);
     $$ = ast;
   }
   | VarDecl {
-    auto ast = new DeclAST2();
-    ast->varDecl = unique_ptr<BaseAST>($1);
+    auto ast = new DeclAST2($1);
+    $$ = ast;
   }
   ;
 
 ConstDecl
   : CONST BType ConstMultiDef ';' {
-    auto ast = new ConstDeclAST();
-    ast->bType = unique_ptr<BaseAST>($2);
-    ast->constDef = unique_ptr<vector<unique_ptr<BaseAST> > >($3);
+    auto ast = new ConstDeclAST($2, $3);
     $$ = ast;
   }
   ;
@@ -363,36 +322,23 @@ ConstMultiDef
   }
   ;
 
-BType
-  : INT {
-    auto ast = new BTypeAST();
-    ast->type = "int";
-    $$ = ast;
-  }
-  ;
-
 ConstDef
   : IDENT '=' ConstInitVal {
-    auto ast = new ConstDefAST();
-    ast->ident = *unique_ptr<string>($1);
-    ast->constInitVal = unique_ptr<BaseAST>($3);
+    auto ast = new ConstDefAST($1->c_str(), $3);
     $$ = ast;
   }
   ;
 
 ConstInitVal
   : ConstExp {
-    auto ast = new ConstInitValAST();
-    ast->constExp = unique_ptr<BaseAST>($1);
+    auto ast = new ConstInitValAST($1);
     $$ = ast;
   }
   ;
 
 VarDecl
   : BType VarMultiDef ';' {
-    auto ast = new VarDeclAST();
-    ast->bType = unique_ptr<BaseAST>($1);
-    ast->varDef = unique_ptr<vector<unique_ptr<BaseAST> > >($2);
+    auto ast = new VarDeclAST($1, $2);
     $$ = ast;
   }
   ;
@@ -412,35 +358,39 @@ VarMultiDef
 
 VarDef 
   : IDENT {
-    auto ast = new VarDefAST1();
-    ast->ident = *unique_ptr<string>($1);
+    auto ast = new VarDefAST1($1->c_str());
     $$ = ast;
   }
   | IDENT '=' InitVal {
-    auto ast = new VarDefAST2();
-    ast->ident = *unique_ptr<string>($1);
-    ast->initVal = unique_ptr<BaseAST>($3);
+    auto ast = new VarDefAST2($1->c_str(), $3);
     $$ = ast;
   }
   ;
 
 InitVal
   : Exp {
-
+    auto ast = new InitValAST($1);
+    $$ = ast;
   }
+  ;
+
+BType
+  : INT {
+    auto ast = new BTypeAST("int");
+    $$ = ast;
+  }
+  ;
 
 LVal
   : IDENT {
-    auto ast = new LValAST();
-    ast->ident = *unique_ptr<string>($1);
+    auto ast = new LValAST($1->c_str());
     $$ = ast;
   }
   ;
 
 ConstExp 
   : Exp {
-    auto ast = new ConstExpAST();
-    ast->exp = unique_ptr<BaseAST>($1);
+    auto ast = new ConstExpAST($1);
     $$ = ast;
   }
   ;
