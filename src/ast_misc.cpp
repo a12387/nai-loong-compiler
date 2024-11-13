@@ -138,7 +138,7 @@ int RelExpAST2::calculateExp() const {
     else if(relOp == ">")  
         return relExp->calculateExp() > addExp->calculateExp();
     else if(relOp == ">=")
-        return relExp->calculateExp() <= addExp->calculateExp();
+        return relExp->calculateExp() >= addExp->calculateExp();
     return 0;
 }
 int EqExpAST1::calculateExp() const {
