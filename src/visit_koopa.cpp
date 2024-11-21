@@ -1,12 +1,11 @@
 #include <cassert>
-#include <unordered_map>
 #include "visit_koopa.hpp"
 
 using namespace std;
 
-static bool is_zero = false;
+static bool isZero = false;
 static int reg = 0;
-static unordered_map<void *, string> reg_map;
+static unordered_map<void *, string> registers;
 
 void visit(ofstream &out, const koopa_raw_program_t raw) {
     out << "    .text\n";
@@ -24,10 +23,27 @@ void visit(ofstream &out, const koopa_raw_slice_t &slice) {
             visit(out, reinterpret_cast<koopa_raw_function_t>(ptr));
             break;
         case KOOPA_RSIK_VALUE:
-            visit(out, reinterpret_cast<koopa_raw_value_t>(ptr));
+            //visit(out, reinterpret_cast<koopa_raw_value_t>(ptr));
+            // Not Implemented
+            break;
+        default:
+            assert(false);
+        }
+    }
+}
+
+void visit(ofstream &out, const koopa_raw_slice_t &slice, StackFrame &stackFrame) {
+    for(int i = 0; i < slice.len; i++) {
+        auto ptr = slice.buffer[i];
+        switch(slice.kind) {
+        case KOOPA_RSIK_FUNCTION:
+            visit(out, reinterpret_cast<koopa_raw_function_t>(ptr));
+            break;
+        case KOOPA_RSIK_VALUE:
+            visit(out, reinterpret_cast<koopa_raw_value_t>(ptr), stackFrame);
             break;
         case KOOPA_RSIK_BASIC_BLOCK:
-            visit(out, reinterpret_cast<koopa_raw_basic_block_t>(ptr));
+            visit(out, reinterpret_cast<koopa_raw_basic_block_t>(ptr), stackFrame);
             break;
         default:
             assert(false);
@@ -38,15 +54,25 @@ void visit(ofstream &out, const koopa_raw_slice_t &slice) {
 void visit(ofstream &out, const koopa_raw_function_t &func) {
     out << &(func->name[1]) << ":\n";
     
-    visit(out, func->bbs);
+    StackFrame stackFrame;
+    int stackBytes = getStackLength(func);
+    int stackLength = (stackBytes / 16 + stackBytes % 16 > 0) * 16;
+    out << "    addi sp, sp, " << -stackLength << '\n';
+    visit(out, func->bbs, stackFrame);
+    out << "    addi sp, sp, " << stackLength << '\n';
+    out << "    ret\n";
 }
 
-void visit(ofstream &out, const koopa_raw_basic_block_t &bb) {
-    visit(out, bb->insts);
+void visit(ofstream &out, const koopa_raw_basic_block_t &bb, StackFrame &stackFrame) {
+    visit(out, bb->insts, stackFrame);
 }
 
-void visit(ofstream &out, const koopa_raw_value_t &value) {
+void visit(ofstream &out, const koopa_raw_value_t &value, StackFrame &stackFrame) {
     const auto &kind = value->kind;
+    void *ptr = (void *)&kind;
+    if(registers.find(ptr) != registers.end()) {
+        return;
+    }
     switch(kind.tag) {
     case KOOPA_RVT_RETURN:
         visit(out, kind.data.ret);
@@ -56,6 +82,21 @@ void visit(ofstream &out, const koopa_raw_value_t &value) {
         break;
     case KOOPA_RVT_BINARY:
         visit(out, kind.data.binary);
+        registers[ptr] = "t" + to_string(reg - 1);
+        break;
+    case KOOPA_RVT_ALLOC:
+        if(value->ty->data.pointer.base->tag == KOOPA_RTT_INT32) {
+            stackFrame.add(ptr, 4);
+            break;
+        }
+        else
+            assert(false);
+    case KOOPA_RVT_LOAD:
+        visit(out, kind.data.load, stackFrame);
+        registers[ptr] = "t" + to_string(reg - 1);
+        break;
+    case KOOPA_RVT_STORE:
+        visit(out, kind.data.store, stackFrame);
         break;
     default:
         assert(false);
@@ -66,19 +107,17 @@ void visit(ofstream &out, const koopa_raw_return_t &ret) {
     
     if(ret.value->kind.tag == KOOPA_RVT_INTEGER) {
         out << "    li a0, ";
-        out << ret.value->kind.data.integer.value;
+        out << ret.value->kind.data.integer.value << '\n';
     }
-    else if(ret.value->kind.tag == KOOPA_RVT_BINARY) {
+    else {
         out << "    mv a0, ";
-        auto j = &ret.value->kind.data.binary;
-        out << reg_map[(void *)j];
+        out << registers[(void *)&ret.value->kind] << '\n';
     }
-    out << "\n    ret\n";
 }
 
 void visit(ofstream &out, const koopa_raw_integer_t &integer) {
     if(integer.value == 0) {
-        is_zero = true;
+        isZero = true;
     }
     else {
         out << "    li t" << reg++ << ", " << integer.value << "\n";
@@ -86,18 +125,15 @@ void visit(ofstream &out, const koopa_raw_integer_t &integer) {
 }
 
 void visit(ofstream &out, const koopa_raw_binary_t &binary) {
-    if(reg_map.find((void *)&binary) != reg_map.end()) {
-        return;
-    }
     string regl, regr;
     int shrink = 2;
     auto lhs = binary.lhs;
     auto rhs = binary.rhs;
 
     if(lhs->kind.tag == KOOPA_RVT_INTEGER) {
-        visit(out, lhs);
-        if(is_zero) {
-            is_zero = false;
+        visit(out, lhs->kind.data.integer);
+        if(isZero) {
+            isZero = false;
             shrink--;
             regl = "x0";
         }
@@ -105,15 +141,16 @@ void visit(ofstream &out, const koopa_raw_binary_t &binary) {
             regl = "t" + to_string(reg - 1);
         }
     }
-    else if(lhs->kind.tag == KOOPA_RVT_BINARY) {
-        auto i = &lhs->kind.data.binary;
-        regl = reg_map[(void *)i];
+    else {
+        void *ptr = (void *)&lhs->kind;
+        regl = registers[ptr];
+        registers.erase(ptr);
     }
 
     if(rhs->kind.tag == KOOPA_RVT_INTEGER) {
-        visit(out, rhs);
-        if(is_zero) {
-            is_zero = false;
+        visit(out, rhs->kind.data.integer);
+        if(isZero) {
+            isZero = false;
             shrink--;
             regr = "x0";
         }
@@ -121,16 +158,15 @@ void visit(ofstream &out, const koopa_raw_binary_t &binary) {
             regr = "t" + to_string(reg - 1);
         }
     }
-    else if(rhs->kind.tag == KOOPA_RVT_BINARY) {
-        auto i = &rhs->kind.data.binary;
-        regr = reg_map[(void *)i];
+    else {
+        void *ptr = (void *)&rhs->kind;
+        regr = registers[ptr];
+        registers.erase(ptr);
     }   
 
     reg -= shrink;
     string reg_dest = "t" + to_string(reg++);
-    reg_map.insert(make_pair((void *)&binary,reg_dest));
     
-
     switch(binary.op) {
     case KOOPA_RBO_ADD:
         out << "    add " << reg_dest << ", " << regl << ", " << regr << "\n";
@@ -176,4 +212,77 @@ void visit(ofstream &out, const koopa_raw_binary_t &binary) {
         out << "    or "  << reg_dest << ", " << regl << ", " << regr << "\n";
         break;
     }
+}
+
+void visit(ofstream &out, const koopa_raw_load_t &load, StackFrame &stackFrame) {
+    void *ptr = (void *)&load.src->kind;
+    out << "    lw t" << reg++ << ", " << stackFrame.find(ptr) << "(sp)\n";
+}
+
+void visit(ofstream &out, const koopa_raw_store_t &store, StackFrame &stackFrame) {
+    auto dest = store.dest;
+    auto value = store.value;
+
+    int shrink = 1;
+    string regv;
+
+    if(value->kind.tag == KOOPA_RVT_INTEGER) {
+        visit(out, value->kind.data.integer);
+        if(isZero) {
+            isZero = false;
+            shrink--;
+            regv = "x0";
+        }
+        else {
+            regv = "t" + to_string(reg - 1);
+        }
+    }
+    else {
+        void *ptr = (void *)&value->kind;
+        regv = registers[ptr];
+        registers.erase(ptr);
+    }
+
+    reg -= shrink;
+    out << "    sw " << regv << ", " << stackFrame.find((void *)&dest->kind) << "(sp)\n";
+}
+
+int getStackLength(const koopa_raw_function_t &func) {
+    return getStackLength(func->bbs);
+}
+
+int getStackLength(const koopa_raw_slice_t &slice) {
+    int ret = 0;
+    for(int i = 0; i < slice.len; i++) {
+        auto ptr = slice.buffer[i];
+        switch(slice.kind) {
+        case KOOPA_RSIK_VALUE:
+            ret += getStackLength(reinterpret_cast<koopa_raw_value_t>(ptr));
+            break;
+        case KOOPA_RSIK_BASIC_BLOCK:
+            ret += getStackLength(reinterpret_cast<koopa_raw_basic_block_t>(ptr));
+            break;
+        default:
+            assert(false);
+        }
+    }
+    return ret;
+}
+
+int getStackLength(const koopa_raw_value_t& value) {
+    switch(value->ty->tag) {
+    case KOOPA_RTT_INT32:
+    case KOOPA_RTT_UNIT:
+        return 0;
+    case KOOPA_RTT_POINTER:
+        if(value->ty->data.pointer.base->tag == KOOPA_RTT_INT32) {
+            return 4;
+        }
+    default:
+        return 0;
+    }
+}
+
+int getStackLength(const koopa_raw_basic_block_t &bb) {
+    return getStackLength(bb->insts);
 }

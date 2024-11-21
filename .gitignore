@@ -10,3 +10,4 @@ src/jsoncpp.cpp
 src/json
 kira
 hello*
+*.S
