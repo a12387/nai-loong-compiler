@@ -94,6 +94,10 @@ Block
     auto ast = new BlockAST($2);
     $$ = ast;
   }
+  | '{' '}' {
+    auto ast = new BlockAST(nullptr);
+    $$ = ast;
+  }
   ;
 
 BlockMultiItem
@@ -123,8 +127,24 @@ Stmt
     auto ast = new StmtAST1($2);
     $$ = ast;
   }
+  | RETURN ';' {
+    auto ast = new StmtAST1(nullptr);
+    $$ = ast;
+  }
   | LVal '=' Exp ';' {
     auto ast = new StmtAST2($1, $3);
+    $$ = ast;
+  }
+  | Exp ';' {
+    auto ast = new StmtAST3($1);
+    $$ = ast;
+  }
+  | ';' {
+    auto ast = new StmtAST3(nullptr);
+    $$ = ast;
+  }
+  | Block {
+    auto ast = new StmtAST4($1);
     $$ = ast;
   }
   ;

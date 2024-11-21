@@ -19,6 +19,8 @@ static unordered_map<string, koopa_raw_binary_op_t> op_map = {
 };
 
 void *CompUnitAST::toKoopa() const {
+    SymbolTable::addTable();
+
     auto raw = new koopa_raw_program_t;
 
     raw->values.buffer = nullptr;
@@ -86,6 +88,9 @@ void *BlockAST::toKoopa() const {
     };
 
     vector<const void *> buffer;
+    if(blockItem == nullptr) {
+        return nullptr;
+    }
     for(int i = 0; i < blockItem->size(); i++) {
         (*blockItem)[i]->toKoopa(buffer);
         if(!buffer.empty() && ((koopa_raw_value_data_t*)buffer.back())->kind.tag == KOOPA_RVT_RETURN) {
@@ -95,6 +100,7 @@ void *BlockAST::toKoopa() const {
     if(buffer.empty() || ((koopa_raw_value_data_t*)buffer.back())->kind.tag != KOOPA_RVT_RETURN) {
         auto ty_value = createTypeKind(KOOPA_RTT_INT32);
         auto value = createValueData(KOOPA_RVT_INTEGER, nullptr, ty_value, KOOPA_RSIK_VALUE);
+        value->kind.data.integer.value = 0;
 
         auto ty_ret = createTypeKind(KOOPA_RTT_UNIT);
         auto ret = createValueData(KOOPA_RVT_RETURN, nullptr, ty_ret, KOOPA_RSIK_VALUE);
@@ -112,11 +118,34 @@ void *BlockAST::toKoopa() const {
 
     return raw;
 }
+void *BlockAST::toKoopa(vector<const void *> &buffer) const {
+    SymbolTable::addTable();
+    if(blockItem == nullptr) {
+        return nullptr;
+    }
+    for(int i = 0; i < blockItem->size(); i++) {
+        (*blockItem)[i]->toKoopa(buffer);
+        if(!buffer.empty() && ((koopa_raw_value_data_t*)buffer.back())->kind.tag == KOOPA_RVT_RETURN) {
+            break;
+        }
+    }
+    SymbolTable::removeTable();
+    return nullptr;
+}
 void *StmtAST1::toKoopa(vector<const void *> & buffer) const {
     auto ty = createTypeKind(KOOPA_RTT_UNIT);
     auto raw = createValueData(KOOPA_RVT_RETURN, nullptr, ty, KOOPA_RSIK_VALUE);
-    
-    auto value = (koopa_raw_value_data_t *)exp->toKoopa(buffer);
+
+    koopa_raw_value_data_t *value;
+    if(exp == nullptr) {
+        auto ty_zero = createTypeKind(KOOPA_RTT_INT32);
+        auto zero = createValueData(KOOPA_RVT_INTEGER, nullptr, ty_zero, KOOPA_RSIK_VALUE);
+        zero->kind.data.integer.value = 0;
+        value = zero;
+    }
+    else {
+        value = (koopa_raw_value_data_t *)exp->toKoopa(buffer);
+    }
     addItemToSlice(value->used_by, raw);
     raw->kind.data.ret.value = value;
 
@@ -136,6 +165,15 @@ void *StmtAST2::toKoopa(vector<const void *> &buffer) const {
 
     buffer.push_back(raw);
     return raw;
+}
+void *StmtAST3::toKoopa(vector<const void *> &buffer) const {
+    if(exp == nullptr)
+        return nullptr;
+    else
+        return exp->toKoopa(buffer);
+}
+void *StmtAST4::toKoopa(vector<const void *> &buffer) const {
+    return block->toKoopa(buffer);
 }
 void *ExpAST::toKoopa(vector<const void *> &buffer) const {
     return lOrExp->toKoopa(buffer);

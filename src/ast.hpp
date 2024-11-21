@@ -57,6 +57,7 @@ public:
     BlockAST(vector<unique_ptr<BaseAST> >*p);
     Json::Value dump() const override;
     void* toKoopa() const override;
+    void* toKoopa(vector<const void *> &buffer) const override;
 };
 
 class StmtAST1 : public BaseAST {
@@ -74,6 +75,24 @@ public:
     unique_ptr<BaseAST> exp;
 
     StmtAST2(BaseAST *p1, BaseAST *p2);
+    Json::Value dump() const override;
+    void *toKoopa(vector<const void *> &buffer) const override;
+};
+
+class StmtAST3 : public BaseAST {
+public:
+    unique_ptr<BaseAST> exp;
+
+    StmtAST3(BaseAST *p);
+    Json::Value dump() const override;
+    void *toKoopa(vector<const void *> &buffer) const override;
+};
+
+class StmtAST4 : public BaseAST {
+public:
+    unique_ptr<BaseAST> block;
+
+    StmtAST4(BaseAST *p);
     Json::Value dump() const override;
     void *toKoopa(vector<const void *> &buffer) const override;
 };

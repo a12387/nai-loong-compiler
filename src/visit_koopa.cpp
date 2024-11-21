@@ -82,7 +82,10 @@ void visit(ofstream &out, const koopa_raw_value_t &value, StackFrame &stackFrame
         break;
     case KOOPA_RVT_BINARY:
         visit(out, kind.data.binary);
-        registers[ptr] = "t" + to_string(reg - 1);
+        if(value->used_by.len > 0)
+            registers[ptr] = "t" + to_string(reg - 1);
+        else 
+            reg--;
         break;
     case KOOPA_RVT_ALLOC:
         if(value->ty->data.pointer.base->tag == KOOPA_RTT_INT32) {

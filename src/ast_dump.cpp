@@ -23,10 +23,15 @@ Value FuncTypeAST::dump() const {
 Value BlockAST::dump() const {
     Value v;
     Value items;
-    for(int i = 0; i < blockItem->size(); i++) {
-        items[i] = (*blockItem)[i]->dump();
+    if(blockItem == nullptr) {
+        v["BlockItem"] = "Empty";
     }
-    v["BlockItem"] = items;
+    else {
+        for(int i = 0; i < blockItem->size(); i++) {
+            items[i] = (*blockItem)[i]->dump();
+        }
+        v["BlockItem"] = items;
+    }
     return v;
 }
 Value StmtAST1::dump() const {
@@ -42,6 +47,26 @@ Value StmtAST2::dump() const {
     stmt["Exp"] = exp->dump();
     Value v;
     v["Assign"] = stmt;
+    return v;
+}
+Value StmtAST3::dump() const {
+    Value v;
+    if(exp == nullptr) {
+        v["Non-Assign Exp"] = "Empty";
+    }
+    else {
+        v["Non-Assign Exp"] = exp->dump();
+    }
+    return v;
+}
+Value StmtAST4::dump() const {
+    Value stmt;
+    if(block != nullptr)
+        stmt["Block"] = block->dump();
+    else 
+        stmt["Block"] = "Empty";
+    Value v;
+    v["New Block"] = stmt;
     return v;
 }
 Value ExpAST::dump() const {

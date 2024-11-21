@@ -14,6 +14,10 @@ StmtAST1::StmtAST1(BaseAST *p)
     : exp(p) {}
 StmtAST2::StmtAST2(BaseAST *p1, BaseAST *p2)
     : lVal(p1), exp(p2) {}
+StmtAST3::StmtAST3(BaseAST *p)
+    : exp(p) {}
+StmtAST4::StmtAST4(BaseAST *p)
+    : block(p) {}
 ExpAST::ExpAST(BaseAST *p)
     : lOrExp(p) {}
 PrimaryExpAST1::PrimaryExpAST1(BaseAST *p)

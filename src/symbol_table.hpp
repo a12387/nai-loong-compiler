@@ -1,6 +1,7 @@
 #pragma once
 
 #include <unordered_map>
+#include <vector>
 #include <koopa.h>
 
 using namespace std;
@@ -26,6 +27,8 @@ public:
     static Item getItem(string ident);
     static void addItem(string ident, int c);
     static void addItem(string ident, koopa_raw_value_data_t *v);
+    static void addTable();
+    static void removeTable();
 private:
-    inline static unordered_map<string, Item> table = {};
+    inline static vector<unordered_map<string, Item> > tables = {};
 };
