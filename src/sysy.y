@@ -38,14 +38,14 @@ using namespace std;
 
 // lexer 返回的所有 token 种类的声明
 // 注意 IDENT 和 INT_CONST 会返回 token 的值, 分别对应 str_val 和 int_val
-%token INT RETURN CONST
+%token INT RETURN CONST IF ELSE
 %token <str_val> IDENT
 %token <int_val> INT_CONST
 
 // 非终结符的类型定义
-%type <ast_val> FuncDef FuncType Block Stmt
+%type <ast_val> FuncDef FuncType Block BlockItem OpenStmt ClosedStmt NonIfStmt
 %type <ast_val> Exp PrimaryExp UnaryExp AddExp MulExp RelExp EqExp LAndExp LOrExp
-%type <ast_val> Decl ConstDecl BType ConstDef ConstInitVal BlockItem LVal ConstExp VarDecl VarDef InitVal
+%type <ast_val> Decl ConstDecl BType ConstDef ConstInitVal LVal ConstExp VarDecl VarDef InitVal
 %type <vec_val> ConstMultiDef BlockMultiItem VarMultiDef
 %type <int_val> Number
 %type <str_val> UnaryOp MulOp AddOp RelOp EqOp
@@ -113,16 +113,40 @@ BlockMultiItem
   }
   ;
 
-BlockItem // 没有必要为它定义AST
-  : Decl {
+BlockItem
+  : OpenStmt {
     $$ = $1;
   }
-  | Stmt {
+  | ClosedStmt {
     $$ = $1;
   }
   ;
 
-Stmt
+OpenStmt
+  : IF '(' Exp ')' BlockItem {
+    auto ast = new IfAST1($3, $5);
+    $$ = ast;
+  }
+  | IF '(' Exp ')' ClosedStmt ELSE OpenStmt {
+    auto ast = new IfAST2($3, $5, $7);
+    $$ = ast;
+  }
+  ;
+
+ClosedStmt
+  : IF '(' Exp ')' ClosedStmt ELSE ClosedStmt {
+    auto ast = new IfAST2($3, $5, $7);
+    $$ = ast;
+  }
+  | NonIfStmt {
+    $$ = $1;
+  }
+  | Decl {
+    $$ = $1;
+  }
+  ;
+
+NonIfStmt
   : RETURN Exp ';' {
     auto ast = new StmtAST1($2);
     $$ = ast;

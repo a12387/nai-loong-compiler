@@ -69,6 +69,23 @@ Value StmtAST4::dump() const {
     v["New Block"] = stmt;
     return v;
 }
+Value IfAST1::dump() const {
+    Value ifstmt;
+    ifstmt["Exp"] = exp->dump();
+    ifstmt["Then"] = stmtThen->dump();
+    Value v;
+    v["If"] = ifstmt;
+    return v;
+}
+Value IfAST2::dump() const {
+    Value ifstmt;
+    ifstmt["Exp"] = exp->dump();
+    ifstmt["Then"] = stmtThen->dump();
+    ifstmt["Else"] = stmtElse->dump();
+    Value v;
+    v["If"] = ifstmt;
+    return v;
+}
 Value ExpAST::dump() const {
     return lOrExp->dump();
 }

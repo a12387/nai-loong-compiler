@@ -18,6 +18,10 @@ StmtAST3::StmtAST3(BaseAST *p)
     : exp(p) {}
 StmtAST4::StmtAST4(BaseAST *p)
     : block(p) {}
+IfAST1::IfAST1(BaseAST *p1, BaseAST *p2)
+    : exp(p1), stmtThen(p2) {}
+IfAST2::IfAST2(BaseAST *p1, BaseAST *p2, BaseAST *p3)
+    : exp(p1), stmtThen(p2), stmtElse(p3) {}
 ExpAST::ExpAST(BaseAST *p)
     : lOrExp(p) {}
 PrimaryExpAST1::PrimaryExpAST1(BaseAST *p)

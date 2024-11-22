@@ -11,12 +11,38 @@ void addItemToSlice(koopa_raw_slice_t &slice, void *item) {
     newbuf[slice.len++] = item;
     slice.buffer = newbuf;
 }
+void addItemToSlice(koopa_raw_slice_t &slice, vector<const void*> &buffer) {
+    auto newbuf = new const void *[slice.len + buffer.size()];
+    if(slice.buffer != nullptr) {
+        memcpy(newbuf, slice.buffer, sizeof(const void *) * slice.len);
+        delete[] slice.buffer;
+    }
+
+    copy(buffer.begin(), buffer.end(), newbuf + slice.len);
+    slice.len += buffer.size();
+    slice.buffer = newbuf;
+}
+void addItemToSlice(koopa_raw_slice_t &slice, vector<void*> &buffer) {
+    auto newbuf = new const void *[slice.len + buffer.size()];
+    if(slice.buffer != nullptr) {
+        memcpy(newbuf, slice.buffer, sizeof(const void *) * slice.len);
+        delete[] slice.buffer;
+    }
+
+    copy(buffer.begin(), buffer.end(), newbuf + slice.len);
+    slice.len += buffer.size();
+    slice.buffer = newbuf;
+}
 koopa_raw_type_kind_t *createTypeKind(koopa_raw_type_tag_t tag)  {
     auto ty = new koopa_raw_type_kind_t;
     ty->tag = tag;
     return ty;
 }
-koopa_raw_value_data_t *createValueData(koopa_raw_value_tag_t tag, const char *name, koopa_raw_type_t ty, koopa_raw_slice_item_kind_t used_by_kind) {
+koopa_raw_value_data_t *createValueData(
+    koopa_raw_value_tag_t tag, 
+    const char *name, 
+    koopa_raw_type_t ty, 
+    koopa_raw_slice_item_kind_t used_by_kind) {
     auto raw = new koopa_raw_value_data_t;
     raw->kind.tag = tag;
     raw->ty = ty;
@@ -34,6 +60,66 @@ koopa_raw_value_data_t *createValueData(koopa_raw_value_tag_t tag, const char *n
         nullptr,
         0,
         used_by_kind
+    };
+    return raw;
+}
+koopa_raw_function_data_t *createFuncData(
+    const char *name, 
+    koopa_raw_type_t ty, 
+    koopa_raw_slice_item_kind_t params_kind, 
+    koopa_raw_slice_item_kind_t bbs_kind) {
+    auto raw = new koopa_raw_function_data_t;
+
+    if(name != nullptr) {
+        auto n = new char[strlen(name) + 1];
+        strcpy(n, name);
+        raw->name = n;
+    }
+    else {
+        raw->name = nullptr;
+    }
+    raw->ty = ty;
+    raw->params = {
+        nullptr,
+        0,
+        params_kind
+    };
+    raw->bbs = {
+        nullptr,
+        0,
+        bbs_kind
+    };
+    return raw;
+}
+koopa_raw_basic_block_data_t *createBasicBlockData(
+    const char *name, 
+    koopa_raw_slice_item_kind_t params_kind, 
+    koopa_raw_slice_item_kind_t used_by_kind, 
+    koopa_raw_slice_item_kind_t insts_kind) {
+    auto raw = new koopa_raw_basic_block_data_t;
+    
+    if(name != nullptr) {
+        auto n = new char[strlen(name) + 1];
+        strcpy(n, name);
+        raw->name = n;
+    }
+    else {
+        raw->name = nullptr;
+    }
+    raw->params = {
+        nullptr,
+        0,
+        params_kind
+    };
+    raw->used_by = {
+        nullptr,
+        0,
+        used_by_kind
+    };
+    raw->insts = {
+        nullptr,
+        0,
+        insts_kind
     };
     return raw;
 }
