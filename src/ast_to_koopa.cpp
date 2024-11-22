@@ -121,6 +121,7 @@ void *BlockAST::toKoopa() const {
 void *BlockAST::toKoopa(vector<const void *> &buffer) const {
     SymbolTable::addTable();
     if(blockItem == nullptr) {
+        SymbolTable::removeTable();
         return nullptr;
     }
     for(int i = 0; i < blockItem->size(); i++) {
