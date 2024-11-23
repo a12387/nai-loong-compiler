@@ -242,13 +242,7 @@ void *IfAST2::toKoopa() const {
     bufferBlocks.push_back(end_bb);
     return raw;
 }
-void *ExpAST::toKoopa() const {
-    return lOrExp->toKoopa();
-}
-void *PrimaryExpAST1::toKoopa() const {
-    return exp->toKoopa();
-}
-void *PrimaryExpAST2::toKoopa() const {
+void *PrimaryExpAST::toKoopa() const {
     auto ty = createTypeKind(KOOPA_RTT_INT32);
     auto raw = createValueData(KOOPA_RVT_INTEGER, nullptr, ty, KOOPA_RSIK_VALUE);
 
@@ -256,13 +250,7 @@ void *PrimaryExpAST2::toKoopa() const {
 
     return raw;
 }
-void *PrimaryExpAST3::toKoopa() const {
-    return lVal->toKoopa();
-}
-void *UnaryExpAST1::toKoopa() const {
-    return primaryExp->toKoopa();
-}
-void *UnaryExpAST2::toKoopa() const {
+void *UnaryExpAST::toKoopa() const {
     if(unaryOp == "+")
         return unaryExp->toKoopa();
 
@@ -283,10 +271,7 @@ void *UnaryExpAST2::toKoopa() const {
 
     return raw;
 }
-void *MulExpAST1::toKoopa() const {
-    return unaryExp->toKoopa();
-}
-void *MulExpAST2::toKoopa() const {
+void *MulExpAST::toKoopa() const {
     auto lhs = (koopa_raw_value_data_t *)mulExp->toKoopa();
     auto rhs = (koopa_raw_value_data_t *)unaryExp->toKoopa();
 
@@ -302,10 +287,7 @@ void *MulExpAST2::toKoopa() const {
 
     return raw;
 }
-void *AddExpAST1::toKoopa() const {
-    return mulExp->toKoopa();
-}
-void *AddExpAST2::toKoopa() const {
+void *AddExpAST::toKoopa() const {
     auto lhs = (koopa_raw_value_data_t *)addExp->toKoopa();
     auto rhs = (koopa_raw_value_data_t *)mulExp->toKoopa();
 
@@ -321,10 +303,7 @@ void *AddExpAST2::toKoopa() const {
 
     return raw;
 }
-void *RelExpAST1::toKoopa() const {
-    return addExp->toKoopa();
-}
-void *RelExpAST2::toKoopa() const {
+void *RelExpAST::toKoopa() const {
     auto lhs = (koopa_raw_value_data_t *)relExp->toKoopa();
     auto rhs = (koopa_raw_value_data_t *)addExp->toKoopa();
 
@@ -340,10 +319,7 @@ void *RelExpAST2::toKoopa() const {
 
     return raw;
 }
-void *EqExpAST1::toKoopa() const {
-    return relExp->toKoopa();
-}
-void *EqExpAST2::toKoopa() const {
+void *EqExpAST::toKoopa() const {
     auto lhs = (koopa_raw_value_data_t *)eqExp->toKoopa();
     auto rhs = (koopa_raw_value_data_t *)relExp->toKoopa();
 
@@ -359,10 +335,7 @@ void *EqExpAST2::toKoopa() const {
 
     return raw;
 }
-void *LAndExpAST1::toKoopa() const {
-    return eqExp->toKoopa();
-}
-void *LAndExpAST2::toKoopa() const {
+void *LAndExpAST::toKoopa() const {
     auto rhs1 = (koopa_raw_value_data_t *)lAndExp->toKoopa();
 
     auto lhs1= createValueData(KOOPA_RVT_INTEGER, nullptr, rhs1->ty, KOOPA_RSIK_VALUE);
@@ -403,10 +376,7 @@ void *LAndExpAST2::toKoopa() const {
 
     return raw;
 }
-void *LOrExpAST1::toKoopa() const {
-    return lAndExp->toKoopa();
-}
-void *LOrExpAST2::toKoopa() const {
+void *LOrExpAST::toKoopa() const {
     auto lhs0 = (koopa_raw_value_data_t *)lOrExp->toKoopa();
     auto rhs0 = (koopa_raw_value_data_t *)lAndExp->toKoopa();
 
@@ -434,12 +404,6 @@ void *LOrExpAST2::toKoopa() const {
     bufferInsts.push_back(raw);
 
     return raw;
-}
-void *DeclAST1::toKoopa() const {
-    return constDecl->toKoopa();
-}
-void *DeclAST2::toKoopa() const {
-    return varDecl->toKoopa();
 }
 void *ConstDeclAST::toKoopa() const {
     for(int i = 0; i < constDef->size(); i++) {
@@ -499,9 +463,6 @@ void *VarDefAST2::toKoopa() const {
 
     return raw1;
     
-}
-void *InitValAST::toKoopa() const {
-    return exp->toKoopa();
 }
 void *LValAST::toKoopa() const {
     //作为右值引用一个符号（如果是变量，必须先Load）

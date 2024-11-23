@@ -118,213 +118,95 @@ public:
     void *toKoopa() const override;
 };
 
-class ExpAST : public BaseAST {
-public:
-    unique_ptr<BaseAST> lOrExp;
-
-    ExpAST(BaseAST *p);
-    Json::Value dump() const override;
-    void* toKoopa() const override;
-    int calculateExp() const override;
-};
-
-class PrimaryExpAST1 : public BaseAST {
-public:
-    unique_ptr<BaseAST> exp;
-
-    PrimaryExpAST1(BaseAST *p);
-    Json::Value dump() const override;
-    void* toKoopa() const override;
-    int calculateExp() const override;
-};
-
-class PrimaryExpAST2: public BaseAST {
+class PrimaryExpAST: public BaseAST {
 public:
     int num;
 
-    PrimaryExpAST2(int num);
+    PrimaryExpAST(int num);
     Json::Value dump() const override;
     void* toKoopa() const override;
     int calculateExp() const override;
 };
 
-class PrimaryExpAST3 : public BaseAST {
-public:
-    unique_ptr<BaseAST> lVal;
-
-    PrimaryExpAST3(BaseAST *p);
-    Json::Value dump() const override;
-    void *toKoopa() const override;
-    int calculateExp() const override;
-};
-
-class UnaryExpAST1 : public BaseAST {
-public:
-    unique_ptr<BaseAST> primaryExp;
-
-    UnaryExpAST1(BaseAST *p);
-    Json::Value dump() const override;
-    void* toKoopa() const override;
-    int calculateExp() const override;
-};
-
-class UnaryExpAST2 : public BaseAST {
+class UnaryExpAST : public BaseAST {
 public:
     string unaryOp;
     unique_ptr<BaseAST> unaryExp;
 
-    UnaryExpAST2(const char *p1, BaseAST *p2);
+    UnaryExpAST(const char *p1, BaseAST *p2);
     Json::Value dump() const override;
     void* toKoopa() const override;
     int calculateExp() const override;
 };
 
-class MulExpAST1 : public BaseAST {
-public:
-    unique_ptr<BaseAST> unaryExp;
-
-    MulExpAST1(BaseAST *p);
-    Json::Value dump() const override;
-    void* toKoopa() const override;
-    int calculateExp() const override;
-};
-
-class MulExpAST2 : public BaseAST {
+class MulExpAST : public BaseAST {
 public:
     unique_ptr<BaseAST> mulExp;
     string mulOp;
     unique_ptr<BaseAST> unaryExp;
 
-    MulExpAST2(BaseAST *p1, const char *p2, BaseAST *p3);
+    MulExpAST(BaseAST *p1, const char *p2, BaseAST *p3);
     Json::Value dump() const override;
     void* toKoopa() const override;
     int calculateExp() const override;
 };
 
-class AddExpAST1 : public BaseAST {
-public:
-    unique_ptr<BaseAST> mulExp;
-
-    AddExpAST1(BaseAST *p);
-    Json::Value dump() const override;
-    void* toKoopa() const override;
-    int calculateExp() const override;
-};
-
-class AddExpAST2 : public BaseAST {
+class AddExpAST : public BaseAST {
 public:
     unique_ptr<BaseAST> addExp;
     string addOp;
     unique_ptr<BaseAST> mulExp;
 
-    AddExpAST2(BaseAST *p1, const char *p2, BaseAST *p3);
+    AddExpAST(BaseAST *p1, const char *p2, BaseAST *p3);
     Json::Value dump() const override;
     void* toKoopa() const override;
     int calculateExp() const override;
 };
 
-class RelExpAST1 : public BaseAST {
-public:
-    unique_ptr<BaseAST> addExp;
-
-    RelExpAST1(BaseAST *p);
-    Json::Value dump() const override;
-    void* toKoopa() const override;
-    int calculateExp() const override;
-};
-
-class RelExpAST2 : public BaseAST {
+class RelExpAST : public BaseAST {
 public:
     unique_ptr<BaseAST> relExp;
     string relOp;
     unique_ptr<BaseAST> addExp;
     
-    RelExpAST2(BaseAST *p1, const char *p2, BaseAST *p3);
+    RelExpAST(BaseAST *p1, const char *p2, BaseAST *p3);
     Json::Value dump() const override;
     void* toKoopa() const override;
     int calculateExp() const override;
 };
 
-class EqExpAST1 : public BaseAST {
-public:
-    unique_ptr<BaseAST> relExp;
-
-    EqExpAST1(BaseAST *p);
-    Json::Value dump() const override;
-    void* toKoopa() const override;
-    int calculateExp() const override;
-};
-
-class EqExpAST2 : public BaseAST {
+class EqExpAST : public BaseAST {
 public:
     unique_ptr<BaseAST> eqExp;
     string eqOp;
     unique_ptr<BaseAST> relExp;
 
-    EqExpAST2(BaseAST *p1, const char *p2, BaseAST *p3);
+    EqExpAST(BaseAST *p1, const char *p2, BaseAST *p3);
     Json::Value dump() const override;
     void* toKoopa() const override;
     int calculateExp() const override;
 };
 
-class LAndExpAST1 : public BaseAST {
-public:
-    unique_ptr<BaseAST> eqExp;
-
-    LAndExpAST1(BaseAST *p);
-    Json::Value dump() const override;
-    void* toKoopa() const override;
-    int calculateExp() const override;
-};
-
-class LAndExpAST2 : public BaseAST {
+class LAndExpAST : public BaseAST {
 public:
     unique_ptr<BaseAST> lAndExp;
     unique_ptr<BaseAST> eqExp;
 
-    LAndExpAST2(BaseAST *p1, BaseAST *p2);
+    LAndExpAST(BaseAST *p1, BaseAST *p2);
     Json::Value dump() const override;
     void* toKoopa() const override;
     int calculateExp() const override;
 };
 
-class LOrExpAST1 : public BaseAST {
-public:
-    unique_ptr<BaseAST> lAndExp;
-
-    LOrExpAST1(BaseAST *p);
-    Json::Value dump() const override;
-    void* toKoopa() const override;
-    int calculateExp() const override;
-};
-
-class LOrExpAST2 : public BaseAST {
+class LOrExpAST : public BaseAST {
 public:
     unique_ptr<BaseAST> lOrExp;
     unique_ptr<BaseAST> lAndExp;
 
-    LOrExpAST2(BaseAST *p1, BaseAST *p2);
+    LOrExpAST(BaseAST *p1, BaseAST *p2);
     Json::Value dump() const override;
     void* toKoopa() const override;
     int calculateExp() const override;
-};
-
-class DeclAST1 : public BaseAST {
-public:
-    unique_ptr<BaseAST> constDecl;
-
-    DeclAST1(BaseAST *p);
-    Json::Value dump() const override;
-    void *toKoopa() const override;
-};
-
-class DeclAST2 : public BaseAST {
-public:
-    unique_ptr<BaseAST> varDecl;
-
-    DeclAST2(BaseAST *p);
-    Json::Value dump() const override;
-    void *toKoopa() const override;
 };
 
 class ConstDeclAST : public BaseAST {
@@ -345,15 +227,6 @@ public:
     ConstDefAST(const char *p1, BaseAST *p2);
     Json::Value dump() const override;
     void *toKoopa() const override;
-};
-
-class ConstInitValAST : public BaseAST {
-public:
-    unique_ptr<BaseAST> constExp;
-
-    ConstInitValAST(BaseAST *p);
-    Json::Value dump() const override;
-    int calculateExp() const override;
 };
 
 class VarDeclAST : public BaseAST {
@@ -385,15 +258,6 @@ public:
     void *toKoopa() const override;
 };
 
-class InitValAST : public BaseAST {
-public:
-    unique_ptr<BaseAST> exp;
-
-    InitValAST(BaseAST *p);
-    Json::Value dump() const override;
-    void *toKoopa() const override;
-};
-
 class BTypeAST : public BaseAST {
 public:
     string type;
@@ -410,14 +274,5 @@ public:
     LValAST(const char *p);
     Json::Value dump() const override;
     void *toKoopa() const override;
-    int calculateExp() const override;
-};
-
-class ConstExpAST : public BaseAST {
-public:
-    unique_ptr<BaseAST> exp;
-
-    ConstExpAST(BaseAST *p);
-    Json::Value dump() const override;
     int calculateExp() const override;
 };

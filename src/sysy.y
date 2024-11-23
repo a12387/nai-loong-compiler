@@ -175,23 +175,20 @@ NonIfStmt
 
 Exp
   : LOrExp {
-    auto ast = new ExpAST($1);
-    $$ = ast;
+    $$ = $1;
   }
   ;
 
 PrimaryExp
   : '(' Exp ')' {
-    auto ast = new PrimaryExpAST1($2);
-    $$ = ast;
+    $$ = $2;
   }
   | Number {
-    auto ast = new PrimaryExpAST2($1);
+    auto ast = new PrimaryExpAST($1);
     $$ = ast;
   }
   | LVal {
-    auto ast = new PrimaryExpAST3($1);
-    $$ = ast;
+    $$ = $1;
   }
   ;
 
@@ -203,11 +200,10 @@ Number
 
 UnaryExp
   : PrimaryExp {
-    auto ast = new UnaryExpAST1($1);
-    $$ = ast;
+    $$ = $1;
   }
   | UnaryOp UnaryExp {
-    auto ast = new UnaryExpAST2($1->c_str(), $2);
+    auto ast = new UnaryExpAST($1->c_str(), $2);
     $$ = ast;
   }
   ;
@@ -226,11 +222,10 @@ UnaryOp
 
 MulExp
   : UnaryExp {
-    auto ast = new MulExpAST1($1);
-    $$ = ast;
+    $$ = $1;
   }
   | MulExp MulOp UnaryExp {
-    auto ast = new MulExpAST2($1, $2->c_str(), $3);
+    auto ast = new MulExpAST($1, $2->c_str(), $3);
     $$ = ast;
   }
   ;
@@ -249,11 +244,10 @@ MulOp
 
 AddExp 
   : MulExp {
-    auto ast = new AddExpAST1($1);
-    $$ = ast;
+    $$ = $1;
   }
   | AddExp AddOp MulExp {
-    auto ast = new AddExpAST2($1, $2->c_str(), $3);
+    auto ast = new AddExpAST($1, $2->c_str(), $3);
     $$ = ast;
   }
   ;
@@ -269,11 +263,10 @@ AddOp
 
 RelExp
   : AddExp {
-    auto ast = new RelExpAST1($1);
-    $$ = ast;
+    $$ = $1;
   }
   | RelExp RelOp AddExp {
-    auto ast = new RelExpAST2($1, $2->c_str(), $3);
+    auto ast = new RelExpAST($1, $2->c_str(), $3);
     $$ = ast;
   }
   ;
@@ -295,11 +288,10 @@ RelOp
 
 EqExp
   : RelExp {
-    auto ast = new EqExpAST1($1);
-    $$ = ast;
+    $$ = $1;
   }
   | EqExp EqOp RelExp {
-    auto ast = new EqExpAST2($1, $2->c_str(), $3);
+    auto ast = new EqExpAST($1, $2->c_str(), $3);
     $$ = ast;
   }
   ;
@@ -315,34 +307,30 @@ EqOp
 
 LAndExp 
   : EqExp {
-    auto ast = new LAndExpAST1($1);
-    $$ = ast;
+    $$ = $1;
   }
   | LAndExp '&' '&' EqExp {
-    auto ast = new LAndExpAST2($1, $4);
+    auto ast = new LAndExpAST($1, $4);
     $$ = ast;
   }
   ;
 
 LOrExp
   : LAndExp {
-    auto ast = new LOrExpAST1($1);
-    $$ = ast;
+    $$ = $1;
   }
   | LOrExp '|' '|' LAndExp {
-    auto ast = new LOrExpAST2($1, $4);
+    auto ast = new LOrExpAST($1, $4);
     $$ = ast;
   }
   ;
 
 Decl
   : ConstDecl {
-    auto ast = new DeclAST1($1);
-    $$ = ast;
+    $$ = $1;
   }
   | VarDecl {
-    auto ast = new DeclAST2($1);
-    $$ = ast;
+    $$ = $1;
   }
   ;
 
@@ -375,8 +363,7 @@ ConstDef
 
 ConstInitVal
   : ConstExp {
-    auto ast = new ConstInitValAST($1);
-    $$ = ast;
+    $$ = $1;
   }
   ;
 
@@ -413,8 +400,7 @@ VarDef
 
 InitVal
   : Exp {
-    auto ast = new InitValAST($1);
-    $$ = ast;
+    $$ = $1;
   }
   ;
 
@@ -434,8 +420,7 @@ LVal
 
 ConstExp 
   : Exp {
-    auto ast = new ConstExpAST($1);
-    $$ = ast;
+    $$ = $1;
   }
   ;
 
