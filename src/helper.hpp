@@ -2,6 +2,7 @@
 
 #include <vector>
 #include "koopa.h"
+#include "ast.hpp"
 #include <string.h>
 using namespace std;
 void addItemToSlice(koopa_raw_slice_t &slice, void *item);
@@ -23,3 +24,4 @@ koopa_raw_basic_block_data_t *createBasicBlockData(
     koopa_raw_slice_item_kind_t params_kind, 
     koopa_raw_slice_item_kind_t used_by_kind, 
     koopa_raw_slice_item_kind_t insts_kind);
+void *getLVal(const BaseAST *p);
