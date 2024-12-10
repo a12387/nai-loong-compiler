@@ -350,7 +350,7 @@ void *LAndExpAST::toKoopa() const {
 
     bufferInsts.push_back(raw1);
 
-    auto rhs2 = (koopa_raw_value_data_t *)lAndExp->toKoopa();
+    auto rhs2 = (koopa_raw_value_data_t *)eqExp->toKoopa();
 
     auto lhs2= createValueData(KOOPA_RVT_INTEGER, nullptr, rhs2->ty, KOOPA_RSIK_VALUE);
     lhs2->kind.data.integer.value = 0;
