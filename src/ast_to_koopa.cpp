@@ -239,12 +239,13 @@ void *IfAST2::toKoopa() const {
         addItemToSlice(end_bb->used_by, rawjmp2);
         flag_else = true;
     }
-    auto ptr2 = (koopa_raw_basic_block_data_t *)bufferBlocks.back();
-    addItemToSlice(ptr2->insts, bufferInsts);
-    bufferInsts.clear();
 
-    if(flag_then || flag_else)
+    if(flag_then || flag_else) {
+        auto ptr2 = (koopa_raw_basic_block_data_t *)bufferBlocks.back();
+        addItemToSlice(ptr2->insts, bufferInsts);
+        bufferInsts.clear();
         bufferBlocks.push_back(end_bb);
+    }
     return raw;
 }
 void *PrimaryExpAST::toKoopa() const {
