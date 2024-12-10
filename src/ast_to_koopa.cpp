@@ -199,6 +199,7 @@ void *IfAST2::toKoopa() const {
         0,
         KOOPA_RSIK_VALUE
     };
+    bool flag_then = false;
     auto last1 = bufferInsts.empty() ? 255 : ((koopa_raw_value_data_t*)bufferInsts.back())->kind.tag;
     if(last1 != KOOPA_RVT_RETURN && last1 != KOOPA_RVT_BRANCH) {
         auto rawjmp1 = createValueData(KOOPA_RVT_JUMP, nullptr, ty, KOOPA_RSIK_VALUE);
@@ -210,6 +211,7 @@ void *IfAST2::toKoopa() const {
         };
         addItemToSlice(end_bb->used_by, rawjmp1);
         bufferInsts.push_back(rawjmp1);
+        flag_then = true;
     }
     auto ptr1 = (koopa_raw_basic_block_data_t *)bufferBlocks.back();
     addItemToSlice(ptr1->insts, bufferInsts);
@@ -223,6 +225,7 @@ void *IfAST2::toKoopa() const {
         0,
         KOOPA_RSIK_VALUE
     };
+    bool flag_else = false;
     auto last2 = bufferInsts.empty() ? 255 : ((koopa_raw_value_data_t*)bufferInsts.back())->kind.tag;
     if(last2 != KOOPA_RVT_RETURN && last2 != KOOPA_RVT_BRANCH) {
         auto rawjmp2 = createValueData(KOOPA_RVT_JUMP, nullptr, ty, KOOPA_RSIK_VALUE);
@@ -234,12 +237,14 @@ void *IfAST2::toKoopa() const {
         };
         bufferInsts.push_back(rawjmp2);
         addItemToSlice(end_bb->used_by, rawjmp2);
+        flag_else = true;
     }
     auto ptr2 = (koopa_raw_basic_block_data_t *)bufferBlocks.back();
     addItemToSlice(ptr2->insts, bufferInsts);
     bufferInsts.clear();
 
-    bufferBlocks.push_back(end_bb);
+    if(flag_then || flag_else)
+        bufferBlocks.push_back(end_bb);
     return raw;
 }
 void *PrimaryExpAST::toKoopa() const {
