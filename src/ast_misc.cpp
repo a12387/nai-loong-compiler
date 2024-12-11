@@ -1,4 +1,5 @@
 #include "ast.hpp"
+#include "helper.hpp"
 using namespace std;
 
 // constructor
@@ -122,3 +123,22 @@ int LValAST::calculateExp() const {
     }
 }
 // end calculateExp
+
+// other
+void BaseAST::endBlock() {
+    auto ptr = (koopa_raw_basic_block_data_t *)bufferBlocks.back();
+    addItemToSlice(ptr->insts, bufferInsts);
+    bufferInsts.clear();
+}
+bool BaseAST::checkBlock(koopa_raw_basic_block_data_t *dest) {
+    auto last = bufferInsts.empty() ? 255 : ((koopa_raw_value_data_t*)bufferInsts.back())->kind.tag;
+    if(last != KOOPA_RVT_RETURN && last != KOOPA_RVT_BRANCH) {
+        auto rawjmp = createValueData(KOOPA_RVT_JUMP, nullptr, createTypeKind(KOOPA_RTT_UNIT), KOOPA_RSIK_VALUE);
+        rawjmp->kind.data.jump.target = dest;
+        rawjmp->kind.data.jump.args = createSlice(KOOPA_RSIK_VALUE);
+        addItemToSlice(dest->used_by, rawjmp);
+        bufferInsts.push_back(rawjmp);
+        return true;
+    }
+    return false;
+}

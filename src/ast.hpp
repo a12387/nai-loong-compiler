@@ -20,6 +20,8 @@ public:
 protected:
     inline static vector<void *> bufferBlocks = {};
     inline static vector<const void *> bufferInsts = {};
+    static void endBlock();
+    static bool checkBlock(koopa_raw_basic_block_data_t *dest);
 };
 
 class CompUnitAST : public BaseAST {

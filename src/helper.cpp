@@ -33,6 +33,14 @@ void addItemToSlice(koopa_raw_slice_t &slice, vector<void*> &buffer) {
     slice.len += buffer.size();
     slice.buffer = newbuf;
 }
+koopa_raw_slice_t createSlice(koopa_raw_slice_item_kind_t kind) {
+    koopa_raw_slice_t raw = {
+        nullptr,
+        0,
+        kind
+    };
+    return raw;
+}
 koopa_raw_type_kind_t *createTypeKind(koopa_raw_type_tag_t tag)  {
     auto ty = new koopa_raw_type_kind_t;
     ty->tag = tag;
@@ -56,11 +64,7 @@ koopa_raw_value_data_t *createValueData(
         raw->name = nullptr;
     }
 
-    raw->used_by = {
-        nullptr,
-        0,
-        used_by_kind
-    };
+    raw->used_by = createSlice(used_by_kind);
     return raw;
 }
 koopa_raw_function_data_t *createFuncData(
@@ -79,16 +83,8 @@ koopa_raw_function_data_t *createFuncData(
         raw->name = nullptr;
     }
     raw->ty = ty;
-    raw->params = {
-        nullptr,
-        0,
-        params_kind
-    };
-    raw->bbs = {
-        nullptr,
-        0,
-        bbs_kind
-    };
+    raw->params = createSlice(params_kind);
+    raw->bbs = createSlice(bbs_kind);
     return raw;
 }
 koopa_raw_basic_block_data_t *createBasicBlockData(
@@ -106,21 +102,23 @@ koopa_raw_basic_block_data_t *createBasicBlockData(
     else {
         raw->name = nullptr;
     }
-    raw->params = {
-        nullptr,
-        0,
-        params_kind
-    };
-    raw->used_by = {
-        nullptr,
-        0,
-        used_by_kind
-    };
-    raw->insts = {
-        nullptr,
-        0,
-        insts_kind
-    };
+    raw->params = createSlice(params_kind);
+    raw->used_by = createSlice(used_by_kind);
+    raw->insts = createSlice(insts_kind);
+    return raw;
+}
+koopa_raw_value_data_t *createIntegerValueData(int num) {
+    auto raw = createValueData(KOOPA_RVT_INTEGER, nullptr, createTypeKind(KOOPA_RTT_INT32), KOOPA_RSIK_VALUE);
+    raw->kind.data.integer.value = num;
+    return raw;
+}
+koopa_raw_value_data_t *createBinaryValueData(koopa_raw_binary_op_t op, 
+    koopa_raw_value_data_t *lhs, 
+    koopa_raw_value_data_t *rhs) {
+    auto raw = createValueData(KOOPA_RVT_BINARY, nullptr, createTypeKind(KOOPA_RTT_INT32), KOOPA_RSIK_VALUE);
+    raw->kind.data.binary.op = op;
+    raw->kind.data.binary.lhs = lhs;
+    raw->kind.data.binary.rhs = rhs;
     return raw;
 }
 void *getLVal(const BaseAST *p) {
