@@ -224,7 +224,10 @@ void visit(ofstream &out, const koopa_raw_branch_t &branch, StackFrame &stackFra
     auto false_args = branch.false_args;
 
     string regc = getReg(out, cond, stackFrame);
-
+    if(regc[0] == 'a') {
+        out << "    mv t" << reg << ", " << regc << endl;
+        regc = "t" + to_string(reg);
+    }
     visitParams(out, true_args, stackFrame);
     out << "    bnez " << regc << ", " << &(true_bb->name[1]) << endl;
     visitParams(out, false_args, stackFrame);
