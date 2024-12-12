@@ -69,6 +69,16 @@ Value StmtAST4::dump() const {
     v["New Block"] = stmt;
     return v;
 }
+Value StmtAST5::dump() const {
+    Value v;
+    v["Break"] = "Break";
+    return v;
+}
+Value StmtAST6::dump() const {
+    Value v;
+    v["Continue"] = "Continue";
+    return v;
+}
 Value IfAST1::dump() const {
     Value ifstmt;
     ifstmt["Exp"] = exp->dump();
@@ -84,6 +94,14 @@ Value IfAST2::dump() const {
     ifstmt["Else"] = stmtElse->dump();
     Value v;
     v["If"] = ifstmt;
+    return v;
+}
+Value WhileAST::dump() const {
+    Value whilestmt;
+    whilestmt["Exp"] = exp->dump();
+    whilestmt["Stmt"] = stmt->dump();
+    Value v;
+    v["While"] = whilestmt;
     return v;
 }
 Value PrimaryExpAST::dump() const {

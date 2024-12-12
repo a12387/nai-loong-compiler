@@ -66,8 +66,10 @@ void *BlockAST::toKoopa() const {
     }
     for(int i = 0; i < blockItem->size(); i++) {
         (*blockItem)[i]->toKoopa();
-        if(!bufferInsts.empty() && ((koopa_raw_value_data_t*)bufferInsts.back())->kind.tag == KOOPA_RVT_RETURN) {
-            break;
+        if(!bufferInsts.empty()) {
+            auto tag = ((koopa_raw_value_data_t*)bufferInsts.back())->kind.tag;
+            if(tag == KOOPA_RVT_RETURN || tag == KOOPA_RVT_JUMP)
+                break;
         }
     }
     SymbolTable::removeTable();
@@ -112,6 +114,28 @@ void *StmtAST3::toKoopa() const {
 }
 void *StmtAST4::toKoopa() const {
     return block->toKoopa();
+}
+void *StmtAST5::toKoopa() const {
+    if(stackLoop.empty())
+        assert(false);
+    
+    auto raw = createValueData(KOOPA_RVT_JUMP, nullptr, createTypeKind(KOOPA_RTT_UNIT), KOOPA_RSIK_VALUE);
+    raw->kind.data.jump.target = (koopa_raw_basic_block_data_t *)stackLoop.back();
+    raw->kind.data.jump.args = createSlice(KOOPA_RSIK_VALUE);
+
+    bufferInsts.push_back(raw);
+    return raw;
+}
+void *StmtAST6::toKoopa() const {
+    if(stackLoop.empty())
+        assert(false);
+    
+    auto raw = createValueData(KOOPA_RVT_JUMP, nullptr, createTypeKind(KOOPA_RTT_UNIT), KOOPA_RSIK_VALUE);
+    raw->kind.data.jump.target = (koopa_raw_basic_block_data_t *)stackLoop.front();
+    raw->kind.data.jump.args = createSlice(KOOPA_RSIK_VALUE);
+
+    bufferInsts.push_back(raw);
+    return raw;
 }
 void *IfAST1::toKoopa() const {
     auto ty = createTypeKind(KOOPA_RTT_UNIT);
@@ -176,6 +200,46 @@ void *IfAST2::toKoopa() const {
         bufferBlocks.push_back(end_bb);
     }
     return raw;
+}
+void *WhileAST::toKoopa() const {
+    auto ty_unit = createTypeKind(KOOPA_RTT_UNIT);
+
+    auto block_while_entry = createBasicBlockData("%while_entry", KOOPA_RSIK_VALUE, KOOPA_RSIK_VALUE, KOOPA_RSIK_VALUE);
+    auto block_while_body = createBasicBlockData("%while_body", KOOPA_RSIK_VALUE, KOOPA_RSIK_VALUE, KOOPA_RSIK_VALUE);
+    auto block_while_end = createBasicBlockData("%while_end", KOOPA_RSIK_VALUE, KOOPA_RSIK_VALUE, KOOPA_RSIK_VALUE);
+
+    stackLoop.push_back(block_while_end);
+    stackLoop.push_front(block_while_entry);
+
+    auto raw_jump = createValueData(KOOPA_RVT_JUMP, nullptr, ty_unit, KOOPA_RSIK_VALUE);
+    raw_jump->kind.data.jump.target = block_while_entry;
+    raw_jump->kind.data.jump.args = createSlice(KOOPA_RSIK_VALUE);
+    bufferInsts.push_back(raw_jump);
+
+    endBlock();
+    bufferBlocks.push_back(block_while_entry);
+
+    auto raw_branch = createValueData(KOOPA_RVT_BRANCH, nullptr, ty_unit, KOOPA_RSIK_VALUE);
+    raw_branch->kind.data.branch.cond = (koopa_raw_value_data_t *)exp->toKoopa();
+    raw_branch->kind.data.branch.true_bb = block_while_body;
+    raw_branch->kind.data.branch.true_args = createSlice(KOOPA_RSIK_VALUE);
+    raw_branch->kind.data.branch.false_bb = block_while_end;
+    raw_branch->kind.data.branch.false_args = createSlice(KOOPA_RSIK_VALUE);
+    bufferInsts.push_back(raw_branch);
+
+    endBlock();
+    bufferBlocks.push_back(block_while_body);
+
+    stmt->toKoopa();
+    checkBlock(block_while_entry);
+
+    endBlock();
+    bufferBlocks.push_back(block_while_end);
+
+    stackLoop.pop_back();
+    stackLoop.pop_front();
+
+    return nullptr;
 }
 void *PrimaryExpAST::toKoopa() const {
     return createIntegerValueData(num);

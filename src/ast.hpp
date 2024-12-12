@@ -4,6 +4,7 @@
 #include <cassert>
 #include <unordered_map>
 #include <vector>
+#include <deque>
 #include <string.h>
 #include <koopa.h>
 #include "json/json.h"
@@ -20,6 +21,7 @@ public:
 protected:
     inline static vector<void *> bufferBlocks = {};
     inline static vector<const void *> bufferInsts = {};
+    inline static deque<const void *> stackLoop = {};
     static void endBlock();
     static bool checkBlock(koopa_raw_basic_block_data_t *dest);
 };
@@ -99,6 +101,20 @@ public:
     void *toKoopa() const override;
 };
 
+class StmtAST5 : public BaseAST {
+public:
+    StmtAST5();
+    Json::Value dump() const override;
+    void *toKoopa() const override;
+};
+
+class StmtAST6 : public BaseAST {
+public:
+    StmtAST6();
+    Json::Value dump() const override;
+    void *toKoopa() const override;
+};
+
 class IfAST1 : public BaseAST {
 public:
     unique_ptr<BaseAST> exp;
@@ -109,7 +125,7 @@ public:
     void *toKoopa() const override;
 };
 
-class IfAST2: public BaseAST {
+class IfAST2 : public BaseAST {
 public:
     unique_ptr<BaseAST> exp;
     unique_ptr<BaseAST> stmtThen;
@@ -120,7 +136,17 @@ public:
     void *toKoopa() const override;
 };
 
-class PrimaryExpAST: public BaseAST {
+class WhileAST : public BaseAST {
+public:
+    unique_ptr<BaseAST> exp;
+    unique_ptr<BaseAST> stmt;
+
+    WhileAST(BaseAST *p1, BaseAST *p2);
+    Json::Value dump() const override;
+    void *toKoopa() const override;
+};
+
+class PrimaryExpAST : public BaseAST {
 public:
     int num;
 

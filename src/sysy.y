@@ -39,12 +39,12 @@ using namespace std;
 
 // lexer 返回的所有 token 种类的声明
 // 注意 IDENT 和 INT_CONST 会返回 token 的值, 分别对应 str_val 和 int_val
-%token INT RETURN CONST IF ELSE
+%token INT RETURN CONST IF ELSE WHILE BREAK CONTINUE
 %token <str_val> IDENT
 %token <int_val> INT_CONST
 
 // 非终结符的类型定义
-%type <ast_val> FuncDef FuncType Block BlockItem OpenStmt ClosedStmt NonIfStmt
+%type <ast_val> FuncDef FuncType Block BlockItem OpenStmt ClosedStmt NonIfStmt 
 %type <ast_val> Exp PrimaryExp UnaryExp AddExp MulExp RelExp EqExp LAndExp LOrExp
 %type <ast_val> Decl ConstDecl BType ConstDef ConstInitVal LVal ConstExp VarDecl VarDef InitVal
 %type <vec_val> ConstMultiDef BlockMultiItem VarMultiDef
@@ -132,6 +132,10 @@ OpenStmt
     auto ast = new IfAST2($3, $5, $7);
     $$ = ast;
   }
+  | WHILE '(' Exp ')' OpenStmt {
+    auto ast = new WhileAST($3, $5);
+    $$ = ast;
+  }
   ;
 
 ClosedStmt
@@ -144,6 +148,10 @@ ClosedStmt
   }
   | Decl {
     $$ = $1;
+  }
+  | WHILE '(' Exp ')' ClosedStmt {
+    auto ast = new WhileAST($3, $5);
+    $$ = ast;
   }
   ;
 
@@ -170,6 +178,14 @@ NonIfStmt
   }
   | Block {
     auto ast = new StmtAST4($1);
+    $$ = ast;
+  }
+  | BREAK ';' {
+    auto ast = new StmtAST5();
+    $$ = ast;
+  }
+  | CONTINUE ';' {
+    auto ast = new StmtAST6();
     $$ = ast;
   }
   ;

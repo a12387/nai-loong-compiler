@@ -19,10 +19,14 @@ StmtAST3::StmtAST3(BaseAST *p)
     : exp(p) {}
 StmtAST4::StmtAST4(BaseAST *p)
     : block(p) {}
+StmtAST5::StmtAST5() {}
+StmtAST6::StmtAST6() {}
 IfAST1::IfAST1(BaseAST *p1, BaseAST *p2)
     : exp(p1), stmtThen(p2) {}
 IfAST2::IfAST2(BaseAST *p1, BaseAST *p2, BaseAST *p3)
     : exp(p1), stmtThen(p2), stmtElse(p3) {}
+WhileAST::WhileAST(BaseAST *p1, BaseAST *p2)
+    : exp(p1), stmt(p2) {}
 PrimaryExpAST::PrimaryExpAST(int num)
     : num(num) {}
 UnaryExpAST::UnaryExpAST(const char *p1, BaseAST *p2)
@@ -132,7 +136,7 @@ void BaseAST::endBlock() {
 }
 bool BaseAST::checkBlock(koopa_raw_basic_block_data_t *dest) {
     auto last = bufferInsts.empty() ? 255 : ((koopa_raw_value_data_t*)bufferInsts.back())->kind.tag;
-    if(last != KOOPA_RVT_RETURN && last != KOOPA_RVT_BRANCH) {
+    if(last != KOOPA_RVT_RETURN && last != KOOPA_RVT_BRANCH && last != KOOPA_RVT_JUMP) {
         auto rawjmp = createValueData(KOOPA_RVT_JUMP, nullptr, createTypeKind(KOOPA_RTT_UNIT), KOOPA_RSIK_VALUE);
         rawjmp->kind.data.jump.target = dest;
         rawjmp->kind.data.jump.args = createSlice(KOOPA_RSIK_VALUE);
