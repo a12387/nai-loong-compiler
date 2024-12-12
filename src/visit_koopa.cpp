@@ -336,13 +336,15 @@ void visitParams(ofstream &out, const koopa_raw_slice_t &params, StackFrame &sta
                 out << "    li a" << i << ", " << ptr->kind.data.integer.value << endl;
                 break;
             default:
-                out << "    mv a" << i << ", " << getReg(out, ptr, stackFrame) << endl;
+                string s = getReg(out, ptr, stackFrame);
+                out << "    mv a" << i << ", " << s << endl;
                 break;
             }
         }
         else {
             stackFrame.add((void *)&ptr->kind, 4);
-            out << "    sw" << getReg(out, ptr, stackFrame) << ", " << stackFrame.find((void *)&ptr->kind) << "(sp)\n";
+            string s = getReg(out, ptr, stackFrame);
+            out << "    sw" << s << ", " << stackFrame.find((void *)&ptr->kind) << "(sp)\n";
         }
     }
 }
