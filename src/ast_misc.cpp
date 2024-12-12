@@ -130,6 +130,11 @@ int LValAST::calculateExp() const {
 
 // other
 void BaseAST::endBlock() {
+    if(bufferInsts.empty()) {
+        auto raw = createValueData(KOOPA_RVT_RETURN, nullptr, createTypeKind(KOOPA_RTT_UNIT), KOOPA_RSIK_VALUE);
+        raw->kind.data.ret.value = createIntegerValueData(0);
+        bufferInsts.push_back(raw);
+    }
     auto ptr = (koopa_raw_basic_block_data_t *)bufferBlocks.back();
     addItemToSlice(ptr->insts, bufferInsts);
     bufferInsts.clear();
