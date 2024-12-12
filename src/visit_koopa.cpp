@@ -123,15 +123,8 @@ void visit(ofstream &out, const koopa_raw_value_t &value, StackFrame &stackFrame
 }
 
 void visit(ofstream &out, const koopa_raw_return_t &ret, StackFrame &stackFrame) {
-    
-    if(ret.value->kind.tag == KOOPA_RVT_INTEGER) {
-        out << "    li a0, ";
-        out << ret.value->kind.data.integer.value << '\n';
-    }
-    else {
-        out << "    mv a0, ";
-        out << registers[(void *)&ret.value->kind] << '\n';
-    }
+    string regv = getReg(out, ret.value, stackFrame);
+    out << "    mv a0, " << regv << endl;
     epilogue(out, stackFrame);
     out << "    ret\n";
 }
