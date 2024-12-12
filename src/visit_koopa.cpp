@@ -1,5 +1,6 @@
 #include <cassert>
 #include "visit_koopa.hpp"
+#include <cstring>
 
 using namespace std;
 
@@ -54,16 +55,19 @@ void visit(ofstream &out, const koopa_raw_slice_t &slice, StackFrame &stackFrame
 void visit(ofstream &out, const koopa_raw_function_t &func) {
     out << &(func->name[1]) << ":\n";
     
-    StackFrame stackFrame;
     int stackBytes = getStackLength(func);
-    int stackLength = (stackBytes / 16 + stackBytes % 16 > 0) * 16;
-    out << "    addi sp, sp, " << -stackLength << '\n';
+    int stackLength = (stackBytes / 16 + (int)(stackBytes % 16 > 0)) * 16;
+    StackFrame stackFrame(stackLength);
+
+    prologue(out, stackFrame);
     visit(out, func->bbs, stackFrame);
-    out << "    addi sp, sp, " << stackLength << '\n';
-    out << "    ret\n";
 }
 
 void visit(ofstream &out, const koopa_raw_basic_block_t &bb, StackFrame &stackFrame) {
+    if(strcmp(bb->name, "%entry") != 0 ) {
+        out << &(bb->name[1]) << ":\n"; 
+    }
+    visit(out, bb->params, stackFrame);
     visit(out, bb->insts, stackFrame);
 }
 
@@ -75,13 +79,13 @@ void visit(ofstream &out, const koopa_raw_value_t &value, StackFrame &stackFrame
     }
     switch(kind.tag) {
     case KOOPA_RVT_RETURN:
-        visit(out, kind.data.ret);
+        visit(out, kind.data.ret, stackFrame);
         break;
     case KOOPA_RVT_INTEGER:
         visit(out, kind.data.integer);
         break;
     case KOOPA_RVT_BINARY:
-        visit(out, kind.data.binary);
+        visit(out, kind.data.binary, stackFrame);
         if(value->used_by.len > 0)
             registers[ptr] = "t" + to_string(reg - 1);
         else 
@@ -101,12 +105,24 @@ void visit(ofstream &out, const koopa_raw_value_t &value, StackFrame &stackFrame
     case KOOPA_RVT_STORE:
         visit(out, kind.data.store, stackFrame);
         break;
+    case KOOPA_RVT_BLOCK_ARG_REF:
+        if(kind.data.block_arg_ref.index > 8)
+            stackFrame.add(ptr, 4);
+        else
+            registers[ptr] = "a" + to_string(kind.data.block_arg_ref.index);
+        break;
+    case KOOPA_RVT_BRANCH:
+        visit(out, kind.data.branch, stackFrame);
+        break;
+    case KOOPA_RVT_JUMP:
+        visit(out, kind.data.jump, stackFrame);
+        break;
     default:
         assert(false);
     }
 }
 
-void visit(ofstream &out, const koopa_raw_return_t &ret) {
+void visit(ofstream &out, const koopa_raw_return_t &ret, StackFrame &stackFrame) {
     
     if(ret.value->kind.tag == KOOPA_RVT_INTEGER) {
         out << "    li a0, ";
@@ -116,6 +132,8 @@ void visit(ofstream &out, const koopa_raw_return_t &ret) {
         out << "    mv a0, ";
         out << registers[(void *)&ret.value->kind] << '\n';
     }
+    epilogue(out, stackFrame);
+    out << "    ret\n";
 }
 
 void visit(ofstream &out, const koopa_raw_integer_t &integer) {
@@ -127,46 +145,14 @@ void visit(ofstream &out, const koopa_raw_integer_t &integer) {
     }
 }
 
-void visit(ofstream &out, const koopa_raw_binary_t &binary) {
-    string regl, regr;
-    int shrink = 2;
+void visit(ofstream &out, const koopa_raw_binary_t &binary, StackFrame &stackFrame) {
+    
     auto lhs = binary.lhs;
     auto rhs = binary.rhs;
 
-    if(lhs->kind.tag == KOOPA_RVT_INTEGER) {
-        visit(out, lhs->kind.data.integer);
-        if(isZero) {
-            isZero = false;
-            shrink--;
-            regl = "x0";
-        }
-        else {
-            regl = "t" + to_string(reg - 1);
-        }
-    }
-    else {
-        void *ptr = (void *)&lhs->kind;
-        regl = registers[ptr];
-        registers.erase(ptr);
-    }
-
-    if(rhs->kind.tag == KOOPA_RVT_INTEGER) {
-        visit(out, rhs->kind.data.integer);
-        if(isZero) {
-            isZero = false;
-            shrink--;
-            regr = "x0";
-        }
-        else {
-            regr = "t" + to_string(reg - 1);
-        }
-    }
-    else {
-        void *ptr = (void *)&rhs->kind;
-        regr = registers[ptr];
-        registers.erase(ptr);
-    }   
-
+    int shrink = 2;
+    string regl = getReg(out, lhs, stackFrame, shrink);
+    string regr = getReg(out, rhs, stackFrame, shrink);
     reg -= shrink;
     string reg_dest = "t" + to_string(reg++);
     
@@ -226,28 +212,31 @@ void visit(ofstream &out, const koopa_raw_store_t &store, StackFrame &stackFrame
     auto dest = store.dest;
     auto value = store.value;
 
-    int shrink = 1;
-    string regv;
-
-    if(value->kind.tag == KOOPA_RVT_INTEGER) {
-        visit(out, value->kind.data.integer);
-        if(isZero) {
-            isZero = false;
-            shrink--;
-            regv = "x0";
-        }
-        else {
-            regv = "t" + to_string(reg - 1);
-        }
-    }
-    else {
-        void *ptr = (void *)&value->kind;
-        regv = registers[ptr];
-        registers.erase(ptr);
-    }
-
-    reg -= shrink;
+    string regv = getReg(out, value, stackFrame);
     out << "    sw " << regv << ", " << stackFrame.find((void *)&dest->kind) << "(sp)\n";
+}
+
+void visit(ofstream &out, const koopa_raw_branch_t &branch, StackFrame &stackFrame) {
+    auto cond = branch.cond;
+    auto true_bb = branch.true_bb;
+    auto true_args = branch.true_args;
+    auto false_bb = branch.false_bb;
+    auto false_args = branch.false_args;
+
+    string regc = getReg(out, cond, stackFrame);
+
+    visitParams(out, true_args, stackFrame);
+    out << "    bnez " << regc << ", " << &(true_bb->name[1]) << endl;
+    visitParams(out, false_args, stackFrame);
+    out << "    j " << &(false_bb->name[1]) << endl;
+}
+
+void visit(ofstream &out, const koopa_raw_jump_t &jump, StackFrame &stackFrame) {
+    auto target = jump.target;
+    auto args = jump.args;
+
+    visitParams(out, args, stackFrame);
+    out << "    j " << &(target->name[1]) << endl;
 }
 
 int getStackLength(const koopa_raw_function_t &func) {
@@ -288,4 +277,72 @@ int getStackLength(const koopa_raw_value_t& value) {
 
 int getStackLength(const koopa_raw_basic_block_t &bb) {
     return getStackLength(bb->insts);
+}
+
+void prologue(ofstream &out, StackFrame &stackFrame) {
+    out << "    addi sp, sp, " << -stackFrame.length << '\n';
+}
+
+void epilogue(ofstream &out, StackFrame &stackFrame) {
+    out << "    addi sp, sp, " << stackFrame.length << '\n';
+}
+
+string getReg(ofstream &out, const koopa_raw_value_t &value, StackFrame &stackFrame, int &shrink) {
+    string regv;
+
+    if(value->kind.tag == KOOPA_RVT_INTEGER) {
+        visit(out, value->kind.data.integer);
+        if(isZero) {
+            isZero = false;
+            shrink--;
+            regv = "x0";
+        }
+        else {
+            regv = "t" + to_string(reg - 1);
+        }
+    }
+    else if (value->kind.tag == KOOPA_RVT_BLOCK_ARG_REF && value->kind.data.block_arg_ref.index >= 8){
+        void *ptr = (void *)&value->kind;
+        regv = "t" + to_string(reg++);
+        out << "    lw " << regv << ", " << stackFrame.find(ptr) << "(sp)\n";
+    }
+    else {
+        void *ptr = (void *)&value->kind;
+        regv = registers[ptr];
+        if(regv[0] != 'a')
+            registers.erase(ptr);
+        else
+            shrink--;
+    }
+
+    return regv;
+}
+
+string getReg(ofstream &out, const koopa_raw_value_t &value, StackFrame &stackFrame) {
+    int shrink = 1;
+    string s = getReg(out, value, stackFrame, shrink);
+    reg -= shrink;
+    return s;
+}
+
+void visitParams(ofstream &out, const koopa_raw_slice_t &params, StackFrame &stackFrame) {
+    if(params.kind != KOOPA_RSIK_VALUE)
+        assert(false);
+    for(int i = 0; i < params.len; i++) {
+        auto ptr = (koopa_raw_value_data_t *)params.buffer[i];
+        if(i < 8) {
+            switch(ptr->kind.tag) {
+            case KOOPA_RVT_INTEGER:
+                out << "    li a" << i << ", " << ptr->kind.data.integer.value << endl;
+                break;
+            default:
+                out << "    mv a" << i << ", " << getReg(out, ptr, stackFrame) << endl;
+                break;
+            }
+        }
+        else {
+            stackFrame.add((void *)&ptr->kind, 4);
+            out << "    sw" << getReg(out, ptr, stackFrame) << ", " << stackFrame.find((void *)&ptr->kind) << "(sp)\n";
+        }
+    }
 }

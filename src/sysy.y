@@ -12,6 +12,7 @@
 #include <ast.hpp>
 
 // 声明 lexer 函数和错误处理函数
+int yydebug = 1;
 int yylex();
 void yyerror(std::unique_ptr<BaseAST> &ast, const char *s);
 

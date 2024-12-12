@@ -9,7 +9,9 @@ private:
     int currentPos;
     unordered_map<void *, int> stackFrame;
 public:
-    StackFrame() {
+    int length;
+    StackFrame(int capacity) {
+        length = capacity;
         currentPos = 0;
         stackFrame = {};
     }
@@ -19,5 +21,7 @@ public:
     void add(void *ptr, int size) {
         stackFrame[ptr] = currentPos;
         currentPos += size;
+        if(currentPos > length)
+            assert(false);
     }
 };
