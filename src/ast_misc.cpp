@@ -3,11 +3,13 @@
 using namespace std;
 
 // constructor
-CompUnitAST::CompUnitAST(BaseAST *p) 
-    : func_def(p) {}
-FuncDefAST::FuncDefAST(BaseAST *p1, const char *p2, BaseAST *p3)
-    : func_type(p1), ident(p2), block(p3) {}
-FuncTypeAST::FuncTypeAST(const char *p)
+CompUnitAST::CompUnitAST(vector<unique_ptr<BaseAST> > *p) 
+    : defs(p) {}
+FuncDefAST::FuncDefAST(BaseAST *p1, const char *p2, vector<unique_ptr<BaseAST> > *p3, BaseAST *p4)
+    : func_type(p1), ident(p2), fparams(p3), block(p4) {}
+FuncFParamAST::FuncFParamAST(BaseAST *p1, const char *p2)
+    : bType(p1), ident(p2) {}
+TypeAST::TypeAST(const char *p)
     : type(p) {}
 BlockAST::BlockAST(vector<unique_ptr<BaseAST> > *p)
     : blockItem(p) {}
@@ -29,8 +31,10 @@ WhileAST::WhileAST(BaseAST *p1, BaseAST *p2)
     : exp(p1), stmt(p2) {}
 PrimaryExpAST::PrimaryExpAST(int num)
     : num(num) {}
-UnaryExpAST::UnaryExpAST(const char *p1, BaseAST *p2)
+UnaryExpAST1::UnaryExpAST1(const char *p1, BaseAST *p2)
     : unaryOp(p1), unaryExp(p2) {}
+UnaryExpAST2::UnaryExpAST2(const char *p1, vector<unique_ptr<BaseAST> > *p2)
+    : ident(p1), rparams(p2) {}
 MulExpAST::MulExpAST(BaseAST *p1, const char *p2, BaseAST *p3)
     : mulExp(p1), mulOp(p2), unaryExp(p3) {}
 AddExpAST::AddExpAST(BaseAST *p1, const char *p2, BaseAST *p3)
@@ -53,8 +57,6 @@ VarDefAST1::VarDefAST1(const char *p)
     : ident(p) {}
 VarDefAST2::VarDefAST2(const char *p1, BaseAST *p2)
     : ident(p1), initVal(p2) {}
-BTypeAST::BTypeAST(const char *p)
-    : type(p) {}
 LValAST::LValAST(const char *p)
     : ident(p) {}
 // end constructor
@@ -63,7 +65,7 @@ LValAST::LValAST(const char *p)
 int PrimaryExpAST::calculateExp() const {
     return num;
 }
-int UnaryExpAST::calculateExp() const {
+int UnaryExpAST1::calculateExp() const {
     switch(unaryOp[0]) {
     case '+':
         return unaryExp->calculateExp();
@@ -130,11 +132,6 @@ int LValAST::calculateExp() const {
 
 // other
 void BaseAST::endBlock() {
-    if(bufferInsts.empty()) {
-        auto raw = createValueData(KOOPA_RVT_RETURN, nullptr, createTypeKind(KOOPA_RTT_UNIT), KOOPA_RSIK_VALUE);
-        raw->kind.data.ret.value = createIntegerValueData(0);
-        bufferInsts.push_back(raw);
-    }
     auto ptr = (koopa_raw_basic_block_data_t *)bufferBlocks.back();
     addItemToSlice(ptr->insts, bufferInsts);
     bufferInsts.clear();
@@ -145,9 +142,95 @@ bool BaseAST::checkBlock(koopa_raw_basic_block_data_t *dest) {
         auto rawjmp = createValueData(KOOPA_RVT_JUMP, nullptr, createTypeKind(KOOPA_RTT_UNIT), KOOPA_RSIK_VALUE);
         rawjmp->kind.data.jump.target = dest;
         rawjmp->kind.data.jump.args = createSlice(KOOPA_RSIK_VALUE);
-        addItemToSlice(dest->used_by, rawjmp);
         bufferInsts.push_back(rawjmp);
         return true;
     }
     return false;
+}
+bool BaseAST::checkBlock(int value) {
+    auto last = bufferInsts.empty() ? 255 : ((koopa_raw_value_data_t*)bufferInsts.back())->kind.tag;
+    if(last != KOOPA_RVT_RETURN && last != KOOPA_RVT_BRANCH && last != KOOPA_RVT_JUMP) {
+        auto rawret = createValueData(KOOPA_RVT_RETURN, nullptr, createTypeKind(KOOPA_RTT_UNIT), KOOPA_RSIK_VALUE);
+        rawret->kind.data.ret.value = createIntegerValueData(value);
+        bufferInsts.push_back(rawret);
+        return true;
+    }
+    return false;
+}
+bool BaseAST::checkBlock() {
+    auto last = bufferInsts.empty() ? 255 : ((koopa_raw_value_data_t*)bufferInsts.back())->kind.tag;
+    if(last != KOOPA_RVT_RETURN && last != KOOPA_RVT_BRANCH && last != KOOPA_RVT_JUMP) {
+        auto rawret = createValueData(KOOPA_RVT_RETURN, nullptr, createTypeKind(KOOPA_RTT_UNIT), KOOPA_RSIK_VALUE);
+        rawret->kind.data.ret.value = nullptr;
+        bufferInsts.push_back(rawret);
+        return true;
+    }
+    return false;
+}
+void BaseAST::initLibFuncs() {
+    auto ty_pint = createTypeKind(KOOPA_RTT_POINTER);
+    auto ty_int = createTypeKind(KOOPA_RTT_INT32);
+    auto ty_unit = createTypeKind(KOOPA_RTT_UNIT);
+    ty_pint->data.pointer.base = ty_int;
+
+    auto ty_getint = createTypeKind(KOOPA_RTT_FUNCTION);
+    ty_getint->data.function.params = createSlice(KOOPA_RSIK_TYPE);
+    ty_getint->data.function.ret = ty_int;
+    auto raw_getint = createFuncData("@getint", ty_getint, KOOPA_RSIK_VALUE, KOOPA_RSIK_BASIC_BLOCK);
+    bufferFuncs.push_back(raw_getint);
+    SymbolTable::addItem("getint", raw_getint);
+
+    auto ty_getch = createTypeKind(KOOPA_RTT_FUNCTION);
+    ty_getch->data.function.params = createSlice(KOOPA_RSIK_TYPE);
+    ty_getch->data.function.ret = ty_int;
+    auto raw_getch = createFuncData("@getch", ty_getch, KOOPA_RSIK_VALUE, KOOPA_RSIK_BASIC_BLOCK);
+    bufferFuncs.push_back(raw_getch);
+    SymbolTable::addItem("getch", raw_getch);
+
+    auto ty_getarray = createTypeKind(KOOPA_RTT_FUNCTION);
+    ty_getarray->data.function.params = createSlice(KOOPA_RSIK_TYPE);
+    ty_getarray->data.function.ret = ty_int;
+    auto raw_getarray = createFuncData("@getarray", ty_getarray, KOOPA_RSIK_VALUE, KOOPA_RSIK_BASIC_BLOCK);
+    addItemToSlice(ty_getarray->data.function.params, ty_pint);
+    bufferFuncs.push_back(raw_getarray);
+    SymbolTable::addItem("getarray", raw_getarray);
+
+    auto ty_putint = createTypeKind(KOOPA_RTT_FUNCTION);
+    ty_putint->data.function.params = createSlice(KOOPA_RSIK_TYPE);
+    ty_putint->data.function.ret = ty_unit;
+    auto raw_putint = createFuncData("@putint", ty_putint, KOOPA_RSIK_VALUE, KOOPA_RSIK_BASIC_BLOCK);
+    addItemToSlice(ty_putint->data.function.params, ty_int);
+    bufferFuncs.push_back(raw_putint);
+    SymbolTable::addItem("putint", raw_putint);
+
+    auto ty_putch = createTypeKind(KOOPA_RTT_FUNCTION);
+    ty_putch->data.function.params = createSlice(KOOPA_RSIK_TYPE);
+    ty_putch->data.function.ret = ty_unit;
+    auto raw_putch = createFuncData("@putch", ty_putch, KOOPA_RSIK_VALUE, KOOPA_RSIK_BASIC_BLOCK);
+    addItemToSlice(ty_putch->data.function.params, ty_int);
+    bufferFuncs.push_back(raw_putch);
+    SymbolTable::addItem("putch", raw_putch);
+
+    auto ty_putarray = createTypeKind(KOOPA_RTT_FUNCTION);
+    ty_putarray->data.function.params = createSlice(KOOPA_RSIK_TYPE);
+    ty_putarray->data.function.ret = ty_unit;
+    auto raw_putarray = createFuncData("@putarray", ty_putarray, KOOPA_RSIK_VALUE, KOOPA_RSIK_BASIC_BLOCK);
+    addItemToSlice(ty_putarray->data.function.params, ty_int);
+    addItemToSlice(ty_putarray->data.function.params, ty_pint);
+    bufferFuncs.push_back(raw_putarray);
+    SymbolTable::addItem("putarray", raw_putarray);
+
+    auto ty_starttime = createTypeKind(KOOPA_RTT_FUNCTION);
+    ty_starttime->data.function.params = createSlice(KOOPA_RSIK_TYPE);
+    ty_starttime->data.function.ret = ty_unit;
+    auto raw_starttime = createFuncData("@starttime", ty_starttime, KOOPA_RSIK_VALUE, KOOPA_RSIK_BASIC_BLOCK);
+    bufferFuncs.push_back(raw_starttime);
+    SymbolTable::addItem("starttime", raw_starttime);
+
+    auto ty_stoptime = createTypeKind(KOOPA_RTT_FUNCTION);
+    ty_stoptime->data.function.params = createSlice(KOOPA_RSIK_TYPE);
+    ty_stoptime->data.function.ret = ty_unit;
+    auto raw_stoptime = createFuncData("@stoptime", ty_stoptime, KOOPA_RSIK_VALUE, KOOPA_RSIK_BASIC_BLOCK);
+    bufferFuncs.push_back(raw_stoptime);
+    SymbolTable::addItem("stoptime", raw_stoptime);
 }

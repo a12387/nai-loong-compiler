@@ -39,15 +39,16 @@ using namespace std;
 
 // lexer 返回的所有 token 种类的声明
 // 注意 IDENT 和 INT_CONST 会返回 token 的值, 分别对应 str_val 和 int_val
-%token INT RETURN CONST IF ELSE WHILE BREAK CONTINUE
+%token INT RETURN CONST IF ELSE WHILE BREAK CONTINUE VOID
 %token <str_val> IDENT
 %token <int_val> INT_CONST
 
 // 非终结符的类型定义
-%type <ast_val> FuncDef FuncType Block BlockItem OpenStmt ClosedStmt NonIfStmt 
+%type <ast_val> Def FuncDef Type Block BlockItem OpenStmt ClosedStmt NonIfStmt 
 %type <ast_val> Exp PrimaryExp UnaryExp AddExp MulExp RelExp EqExp LAndExp LOrExp
-%type <ast_val> Decl ConstDecl BType ConstDef ConstInitVal LVal ConstExp VarDecl VarDef InitVal
-%type <vec_val> ConstMultiDef BlockMultiItem VarMultiDef
+%type <ast_val> Decl ConstDecl ConstDef ConstInitVal LVal ConstExp VarDecl VarDef InitVal
+%type <ast_val> FuncFParam
+%type <vec_val> ConstMultiDef BlockMultiItem VarMultiDef CompUnits FuncFParams FuncRParams
 %type <int_val> Number
 %type <str_val> UnaryOp MulOp AddOp RelOp EqOp
 
@@ -59,33 +60,71 @@ using namespace std;
 // 此时我们应该把 FuncDef 返回的结果收集起来, 作为 AST 传给调用 parser 的函数
 // $1 指代规则里第一个符号的返回值, 也就是 FuncDef 的返回值
 CompUnit
-  : FuncDef {
+  : CompUnits {
     auto comp_unit = make_unique<CompUnitAST>($1);
     ast = move(comp_unit);
   }
   ;
 
-// FuncDef ::= FuncType IDENT '(' ')' Block;
-// 我们这里可以直接写 '(' 和 ')', 因为之前在 lexer 里已经处理了单个字符的情况
-// 解析完成后, 把这些符号的结果收集起来, 然后拼成一个新的字符串, 作为结果返回
-// $$ 表示非终结符的返回值, 我们可以通过给这个符号赋值的方法来返回结果
-// 你可能会问, FuncType, IDENT 之类的结果已经是字符串指针了
-// 为什么还要用 unique_ptr 接住它们, 然后再解引用, 把它们拼成另一个字符串指针呢
-// 因为所有的字符串指针都是我们 new 出来的, new 出来的内存一定要 delete
-// 否则会发生内存泄漏, 而 unique_ptr 这种智能指针可以自动帮我们 delete
-// 虽然此处你看不出用 unique_ptr 和手动 delete 的区别, 但当我们定义了 AST 之后
-// 这种写法会省下很多内存管理的负担
+CompUnits
+  : CompUnits Def {
+    auto vec = $1;
+    vec->push_back(unique_ptr<BaseAST>($2));
+    $$ = vec;
+  }
+  | Def {
+    auto vec = new vector<unique_ptr<BaseAST> >;
+    vec->push_back(unique_ptr<BaseAST>($1));
+    $$ = vec;
+  }
+  ;
+
+Def
+  : FuncDef {
+    $$ = $1;
+  }
+  | Decl {
+    $$ = $1;
+  }
+
 FuncDef
-  : FuncType IDENT '(' ')' Block {
-    auto ast = new FuncDefAST($1, $2->c_str(), $5);
+  : Type IDENT '(' ')' Block {
+    auto ast = new FuncDefAST($1, $2->c_str(), nullptr, $5);
+    $$ = ast;
+  }
+  | Type IDENT '(' FuncFParams ')' Block {
+    auto ast = new FuncDefAST($1, $2->c_str(), $4, $6);
     $$ = ast;
   }
   ;
 
-// 同上, 不再解释
-FuncType
+FuncFParams
+  : FuncFParams ',' FuncFParam {
+    auto vec = $1;
+    vec->push_back(unique_ptr<BaseAST>($3));
+    $$ = vec;
+  }
+  | FuncFParam {
+    auto vec = new vector<unique_ptr<BaseAST> >;
+    vec->push_back(unique_ptr<BaseAST>($1));
+    $$ = vec;
+  }
+  ;
+
+FuncFParam
+  : Type IDENT {
+    auto ast = new FuncFParamAST($1, $2->c_str());
+    $$ = ast;
+  }
+  ;
+
+Type
   : INT {
-    auto ast = new FuncTypeAST("int");
+    auto ast = new TypeAST("int");
+    $$ = ast;
+  }
+  | VOID {
+    auto ast = new TypeAST("void");
     $$ = ast;
   }
   ;
@@ -220,8 +259,29 @@ UnaryExp
     $$ = $1;
   }
   | UnaryOp UnaryExp {
-    auto ast = new UnaryExpAST($1->c_str(), $2);
+    auto ast = new UnaryExpAST1($1->c_str(), $2);
     $$ = ast;
+  }
+  | IDENT '(' ')' {
+    auto ast = new UnaryExpAST2($1->c_str(), nullptr);
+    $$ = ast;
+  }
+  | IDENT '(' FuncRParams ')' {
+    auto ast = new UnaryExpAST2($1->c_str(), $3);
+    $$ = ast;
+  }
+  ;
+
+FuncRParams
+  : FuncRParams ',' Exp {
+    auto vec = $1;
+    vec->push_back(unique_ptr<BaseAST>($3));
+    $$ = vec;
+  }
+  | Exp {
+    auto vec = new vector<unique_ptr<BaseAST> >;
+    vec->push_back(unique_ptr<BaseAST>($1));
+    $$ = vec;
   }
   ;
 
@@ -352,7 +412,7 @@ Decl
   ;
 
 ConstDecl
-  : CONST BType ConstMultiDef ';' {
+  : CONST Type ConstMultiDef ';' {
     auto ast = new ConstDeclAST($2, $3);
     $$ = ast;
   }
@@ -385,7 +445,7 @@ ConstInitVal
   ;
 
 VarDecl
-  : BType VarMultiDef ';' {
+  : Type VarMultiDef ';' {
     auto ast = new VarDeclAST($1, $2);
     $$ = ast;
   }
@@ -418,13 +478,6 @@ VarDef
 InitVal
   : Exp {
     $$ = $1;
-  }
-  ;
-
-BType
-  : INT {
-    auto ast = new BTypeAST("int");
-    $$ = ast;
   }
   ;
 

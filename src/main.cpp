@@ -88,6 +88,10 @@ int main(int argc, const char *argv[])
 
         koopa_raw_program_builder_t builder = koopa_new_raw_program_builder();
         koopa_raw_program_t raw = koopa_build_raw_program(builder, program);
+        ofstream out(output, ios::out | ios::trunc);
+        assert(out.is_open());
+        visit(out, raw);
+        out.close();
         koopa_delete_program(program);
         koopa_delete_raw_program_builder(builder);
     }

@@ -16,21 +16,27 @@ class BaseAST {
 public:
     virtual ~BaseAST() = default;
     virtual Json::Value dump() const = 0;
-    virtual void* toKoopa() const { return nullptr; }
+    virtual void *toKoopa() const { return nullptr; }
     virtual int calculateExp() const { return 0; }
 protected:
     inline static vector<void *> bufferBlocks = {};
     inline static vector<const void *> bufferInsts = {};
+    inline static vector<const void *> bufferFuncs = {};
+    inline static vector<const void *> bufferGlobalValues = {};
     inline static deque<const void *> stackLoop = {};
+    inline static bool insideFunc = false;
     static void endBlock();
     static bool checkBlock(koopa_raw_basic_block_data_t *dest);
+    static bool checkBlock(int value);
+    static bool checkBlock();
+    static void initLibFuncs();
 };
 
 class CompUnitAST : public BaseAST {
 public:
-    unique_ptr<BaseAST> func_def;
+    unique_ptr<vector<unique_ptr<BaseAST> > > defs;
 
-    CompUnitAST(BaseAST *p);
+    CompUnitAST(vector<unique_ptr<BaseAST> > *p);
     Json::Value dump() const override;
     void *toKoopa() const override;
 };
@@ -39,29 +45,40 @@ class FuncDefAST : public BaseAST {
 public:
     unique_ptr<BaseAST> func_type;
     string ident;
+    unique_ptr<vector<unique_ptr<BaseAST> > > fparams;
     unique_ptr<BaseAST> block;
 
-    FuncDefAST(BaseAST *p1, const char *p2, BaseAST *p3);
+    FuncDefAST(BaseAST *p1, const char *p2, vector<unique_ptr<BaseAST> > *p3, BaseAST *p4);
     Json::Value dump() const override;
-    void* toKoopa() const override;
+    void *toKoopa() const override;
 };
 
-class FuncTypeAST : public BaseAST {
+class FuncFParamAST : public BaseAST {
+public:
+    unique_ptr<BaseAST> bType;
+    string ident;
+
+    FuncFParamAST(BaseAST *p1, const char *p2);
+    Json::Value dump() const override;
+    void *toKoopa() const override;
+};
+
+class TypeAST : public BaseAST {
 public:
     string type;
 
-    FuncTypeAST(const char *p);
+    TypeAST(const char *p);
     Json::Value dump() const override;
-    void* toKoopa() const override;
+    void *toKoopa() const override;
 };
 
 class BlockAST : public BaseAST {
 public:
-    unique_ptr<vector<unique_ptr<BaseAST> > >blockItem;
+    unique_ptr<vector<unique_ptr<BaseAST> > > blockItem;
 
     BlockAST(vector<unique_ptr<BaseAST> >*p);
     Json::Value dump() const override;
-    void* toKoopa() const override;
+    void *toKoopa() const override;
 };
 
 class StmtAST1 : public BaseAST {
@@ -70,7 +87,7 @@ public:
 
     StmtAST1(BaseAST *p);
     Json::Value dump() const override;
-    void* toKoopa() const override;
+    void *toKoopa() const override;
 };
 
 class StmtAST2 : public BaseAST {
@@ -152,19 +169,29 @@ public:
 
     PrimaryExpAST(int num);
     Json::Value dump() const override;
-    void* toKoopa() const override;
+    void *toKoopa() const override;
     int calculateExp() const override;
 };
 
-class UnaryExpAST : public BaseAST {
+class UnaryExpAST1 : public BaseAST {
 public:
     string unaryOp;
     unique_ptr<BaseAST> unaryExp;
 
-    UnaryExpAST(const char *p1, BaseAST *p2);
+    UnaryExpAST1(const char *p1, BaseAST *p2);
     Json::Value dump() const override;
-    void* toKoopa() const override;
+    void *toKoopa() const override;
     int calculateExp() const override;
+};
+
+class UnaryExpAST2 : public BaseAST {
+public:
+    string ident;
+    unique_ptr<vector<unique_ptr<BaseAST> > > rparams;
+
+    UnaryExpAST2(const char *p1, vector<unique_ptr<BaseAST> > *p2);
+    Json::Value dump() const override;
+    void *toKoopa() const override;
 };
 
 class MulExpAST : public BaseAST {
@@ -175,7 +202,7 @@ public:
 
     MulExpAST(BaseAST *p1, const char *p2, BaseAST *p3);
     Json::Value dump() const override;
-    void* toKoopa() const override;
+    void *toKoopa() const override;
     int calculateExp() const override;
 };
 
@@ -187,7 +214,7 @@ public:
 
     AddExpAST(BaseAST *p1, const char *p2, BaseAST *p3);
     Json::Value dump() const override;
-    void* toKoopa() const override;
+    void *toKoopa() const override;
     int calculateExp() const override;
 };
 
@@ -199,7 +226,7 @@ public:
     
     RelExpAST(BaseAST *p1, const char *p2, BaseAST *p3);
     Json::Value dump() const override;
-    void* toKoopa() const override;
+    void *toKoopa() const override;
     int calculateExp() const override;
 };
 
@@ -211,7 +238,7 @@ public:
 
     EqExpAST(BaseAST *p1, const char *p2, BaseAST *p3);
     Json::Value dump() const override;
-    void* toKoopa() const override;
+    void *toKoopa() const override;
     int calculateExp() const override;
 };
 
@@ -222,7 +249,7 @@ public:
 
     LAndExpAST(BaseAST *p1, BaseAST *p2);
     Json::Value dump() const override;
-    void* toKoopa() const override;
+    void *toKoopa() const override;
     int calculateExp() const override;
 };
 
@@ -233,7 +260,7 @@ public:
 
     LOrExpAST(BaseAST *p1, BaseAST *p2);
     Json::Value dump() const override;
-    void* toKoopa() const override;
+    void *toKoopa() const override;
     int calculateExp() const override;
 };
 
@@ -282,15 +309,6 @@ public:
     unique_ptr<BaseAST> initVal;
 
     VarDefAST2(const char *p1, BaseAST *p2);
-    Json::Value dump() const override;
-    void *toKoopa() const override;
-};
-
-class BTypeAST : public BaseAST {
-public:
-    string type;
-
-    BTypeAST(const char *p);
     Json::Value dump() const override;
     void *toKoopa() const override;
 };

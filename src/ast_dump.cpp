@@ -3,7 +3,8 @@ using namespace Json;
 
 Value CompUnitAST::dump() const {
     Value comp_unit;
-    comp_unit["FuncDef"] = func_def->dump();
+    for(auto &i : *defs)
+        comp_unit["Def"] = i->dump();
     return comp_unit;
 }
 Value FuncDefAST::dump() const {
@@ -11,11 +12,27 @@ Value FuncDefAST::dump() const {
 
     v["FuncType"] = func_type->dump();
     v["Ident"] = ident;
+    if(fparams == nullptr) {
+        v["Params"] = "Empty";
+    }
+    else {
+        Value params;
+        for(int i = 0; i < fparams->size(); i++) {
+            params[i] = (*fparams)[i]->dump();
+        }
+        v["Params"] = params;
+    }
     v["Block"] = block->dump();
 
     return v;
 }
-Value FuncTypeAST::dump() const {
+Value FuncFParamAST::dump() const {
+    Value v;
+    v["BType"] = bType->dump();
+    v["Ident"] = ident;
+    return v;
+}
+Value TypeAST::dump() const {
     Value v;
     v["Type"] = type;
     return v;
@@ -109,10 +126,25 @@ Value PrimaryExpAST::dump() const {
     v["Number"] = num;
     return v;
 }
-Value UnaryExpAST::dump() const {
+Value UnaryExpAST1::dump() const {
     Value v;
     v["Operator"] = unaryOp;
     v["UnaryExp"] = unaryExp->dump();
+    return v;
+}
+Value UnaryExpAST2::dump() const {
+    Value v;
+    v["Func"] = ident;
+    if(rparams == nullptr) {
+        v["Params"] = "Empty";
+    }
+    else {
+        Value params;
+        for(int i = 0; i < rparams->size(); i++) {
+            params[i] = (*rparams)[i]->dump();
+        }
+        v["Params"] = params;
+    }
     return v;
 }
 Value MulExpAST::dump() const {
@@ -165,11 +197,6 @@ Value ConstDeclAST::dump() const {
         defs[i] = (*constDef)[i]->dump();
     }
     v["ConstDef"] = defs;
-    return v;
-}
-Value BTypeAST::dump() const {
-    Value v;
-    v["Type"] = type;
     return v;
 }
 Value ConstDefAST::dump() const {

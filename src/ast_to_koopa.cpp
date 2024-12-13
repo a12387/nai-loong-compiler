@@ -20,39 +20,83 @@ static unordered_map<string, koopa_raw_binary_op_t> op_map = {
 };
 
 void *CompUnitAST::toKoopa() const {
+    SymbolTable::addTable();
     auto raw = new koopa_raw_program_t;
 
-    raw->values.buffer = nullptr;
-    raw->values.kind = KOOPA_RSIK_VALUE;
-    raw->values.len = 0;
+    raw->values = createSlice(KOOPA_RSIK_VALUE);
+    raw->funcs = createSlice(KOOPA_RSIK_FUNCTION);
 
-    vector<const void *> buffer;
-    buffer.push_back(func_def->toKoopa());
-    raw->funcs.buffer = new const void *[buffer.size()];
-    copy(buffer.begin(), buffer.end(), raw->funcs.buffer);
-    raw->funcs.kind = KOOPA_RSIK_FUNCTION;
-    raw->funcs.len = buffer.size();
-
+    initLibFuncs();
+    
+    for(auto &i : *defs) {
+        i->toKoopa();
+    }
+    addItemToSlice(raw->funcs, bufferFuncs);
+    addItemToSlice(raw->values, bufferGlobalValues);
+    SymbolTable::removeTable();
     return raw;
 }
 void *FuncDefAST::toKoopa() const {
+    
+    insideFunc = true;
     auto ty = createTypeKind(KOOPA_RTT_FUNCTION);
     ty->data.function.params = createSlice(KOOPA_RSIK_TYPE);
     ty->data.function.ret = (koopa_raw_type_t)func_type->toKoopa();
 
     auto rawfunc = createFuncData(("@" + ident).c_str(), ty, KOOPA_RSIK_VALUE, KOOPA_RSIK_BASIC_BLOCK);
+    SymbolTable::addItem(ident, rawfunc);
+    SymbolTable::addTable();
+    if(fparams != nullptr) {
+        vector<const void *> bufferParams;
+        vector<const void *> bufferTypeParmas;
+        for(int i = 0; i < fparams->size(); i++) {
+            auto ptr = (koopa_raw_value_data_t *)(*fparams)[i]->toKoopa();
+            auto ptr_ty = ptr->ty;
+            ptr->kind.data.func_arg_ref.index = i;
+            bufferParams.push_back(ptr);
+            bufferTypeParmas.push_back(ptr_ty);
+
+            auto ty_pointer = createTypeKind(KOOPA_RTT_POINTER);
+            ty_pointer->data.pointer.base = ptr_ty;
+            string name(&(ptr->name[1]));
+            auto raw_alloc = createValueData(KOOPA_RVT_ALLOC, ("@" + name).c_str(), ty_pointer, KOOPA_RSIK_VALUE);
+            auto raw_store = createValueData(KOOPA_RVT_STORE, nullptr, createTypeKind(KOOPA_RTT_UNIT), KOOPA_RSIK_VALUE);
+            raw_store->kind.data.store.dest = raw_alloc;
+            raw_store->kind.data.store.value = ptr;
+            bufferInsts.push_back(raw_alloc);
+            bufferInsts.push_back(raw_store);
+            SymbolTable::addItem(name, raw_alloc);
+        }
+        addItemToSlice(rawfunc->params, bufferParams);
+        addItemToSlice(ty->data.function.params, bufferTypeParmas);
+    }
 
     auto rawentry = createBasicBlockData("%entry", KOOPA_RSIK_VALUE, KOOPA_RSIK_VALUE, KOOPA_RSIK_VALUE);
     bufferBlocks.push_back(rawentry);
     block->toKoopa();
+
+    if(ty->data.function.ret->tag == KOOPA_RTT_INT32)
+        checkBlock(0);
+    else
+        checkBlock();
+    
     endBlock();
 
     addItemToSlice(rawfunc->bbs, bufferBlocks);
     bufferBlocks.clear();
 
+    bufferFuncs.push_back(rawfunc);
+
+    insideFunc = false;
+    SymbolTable::removeTable();
     return rawfunc;
 }
-void *FuncTypeAST::toKoopa() const {
+void *FuncFParamAST::toKoopa() const {
+    auto ty = (koopa_raw_type_kind_t *)bType->toKoopa();
+    auto raw = createValueData(KOOPA_RVT_FUNC_ARG_REF, ("%" + ident).c_str(), ty, KOOPA_RSIK_VALUE);
+    return raw;
+}
+void *TypeAST::toKoopa() const {
     if(type == "int")
         return createTypeKind(KOOPA_RTT_INT32);
     else
@@ -244,7 +288,7 @@ void *WhileAST::toKoopa() const {
 void *PrimaryExpAST::toKoopa() const {
     return createIntegerValueData(num);
 }
-void *UnaryExpAST::toKoopa() const {
+void *UnaryExpAST1::toKoopa() const {
     if(unaryOp == "+")
         return unaryExp->toKoopa();
 
@@ -253,6 +297,21 @@ void *UnaryExpAST::toKoopa() const {
     auto raw = createBinaryValueData(op_map[unaryOp], lhs, rhs);
     bufferInsts.push_back(raw);
 
+    return raw;
+}
+void *UnaryExpAST2::toKoopa() const {
+    auto callee = SymbolTable::getItem(ident, SYMBOLTABLE_ITEM_FUNC).data.f;
+    auto raw = createValueData(KOOPA_RVT_CALL, nullptr, callee->ty->data.function.ret, KOOPA_RSIK_VALUE);
+    raw->kind.data.call.callee = callee;
+    raw->kind.data.call.args = createSlice(KOOPA_RSIK_VALUE);
+    if(rparams != nullptr) {
+        vector<void *> bufferParams;
+        for(int i = 0; i < rparams->size(); i++) {
+            bufferParams.push_back((*rparams)[i]->toKoopa());
+        }
+        addItemToSlice(raw->kind.data.call.args, bufferParams);
+    }
+    bufferInsts.push_back(raw);
     return raw;
 }
 void *MulExpAST::toKoopa() const {
@@ -379,12 +438,6 @@ void *ConstDeclAST::toKoopa() const {
     }
     return nullptr;
 }
-void *BTypeAST::toKoopa() const {
-    if(type == "int")
-        return createTypeKind(KOOPA_RTT_INT32);
-    else
-        return createTypeKind(KOOPA_RTT_UNIT);
-}
 void *ConstDefAST::toKoopa() const{
     SymbolTable::addItem(ident, constInitVal->calculateExp());
     return nullptr;
@@ -399,38 +452,53 @@ void *VarDeclAST::toKoopa() const {
     return nullptr;
 }
 void *VarDefAST1::toKoopa() const {
-    // ty暂时设成nullptr，之后在VarDecl中赋值
-    auto raw = createValueData(KOOPA_RVT_ALLOC, ("@" + ident).c_str(), nullptr, KOOPA_RSIK_VALUE);
-
-    bufferInsts.push_back(raw);
-
-    SymbolTable::addItem(ident, raw);
-
-    return raw;
+    if(insideFunc) {
+        // ty暂时设成nullptr，之后在VarDecl中赋值
+        auto raw = createValueData(KOOPA_RVT_ALLOC, ("@" + ident).c_str(), nullptr, KOOPA_RSIK_VALUE);
+        bufferInsts.push_back(raw);
+        SymbolTable::addItem(ident, raw);
+        return raw;
+    }
+    else {
+        auto ty_pint = createTypeKind(KOOPA_RTT_POINTER);
+        auto ty_int = createTypeKind(KOOPA_RTT_INT32);
+        ty_pint->data.pointer.base = ty_int;
+        auto raw = createValueData(KOOPA_RVT_GLOBAL_ALLOC, ("@" + ident).c_str(), ty_pint, KOOPA_RSIK_VALUE);
+        auto zeroinit = createValueData(KOOPA_RVT_ZERO_INIT, nullptr, ty_int, KOOPA_RSIK_VALUE);
+        raw->kind.data.global_alloc.init = zeroinit;
+        bufferGlobalValues.push_back(raw);
+        SymbolTable::addItem(ident, raw);
+        return raw;
+    }
 }
 void *VarDefAST2::toKoopa() const {
-    // ty暂时设成nullptr，之后在VarDecl中赋值
-    auto raw1 = createValueData(KOOPA_RVT_ALLOC, ("@" + ident).c_str(), nullptr, KOOPA_RSIK_VALUE);
+    if(insideFunc) {
+        // ty暂时设成nullptr，之后在VarDecl中赋值
+        auto raw1 = createValueData(KOOPA_RVT_ALLOC, ("@" + ident).c_str(), nullptr, KOOPA_RSIK_VALUE);
+        bufferInsts.push_back(raw1);
+        SymbolTable::addItem(ident, raw1);
 
-    bufferInsts.push_back(raw1);
+        auto ty = createTypeKind(KOOPA_RTT_UNIT);
+        auto value = (koopa_raw_value_data_t *)initVal->toKoopa();
+        auto raw2 = createValueData(KOOPA_RVT_STORE, nullptr, ty, KOOPA_RSIK_VALUE);
+        raw2->kind.data.store.dest = raw1;
+        raw2->kind.data.store.value = value;
 
-    SymbolTable::addItem(ident, raw1);
-
-    auto ty = createTypeKind(KOOPA_RTT_UNIT);
-
-    auto value = (koopa_raw_value_data_t *)initVal->toKoopa();
-
-    auto raw2 = createValueData(KOOPA_RVT_STORE, nullptr, ty, KOOPA_RSIK_VALUE);
-    raw2->kind.data.store.dest = raw1;
-    raw2->kind.data.store.value = value;
-
-    addItemToSlice(raw1->used_by, raw2);
-    addItemToSlice(value->used_by, raw2);
-
-    bufferInsts.push_back(raw2);
-
-    return raw1;
-    
+        addItemToSlice(raw1->used_by, raw2);
+        addItemToSlice(value->used_by, raw2);
+        bufferInsts.push_back(raw2);
+        return raw1;
+    }
+    else {
+        auto ty_pint = createTypeKind(KOOPA_RTT_POINTER);
+        auto ty_int = createTypeKind(KOOPA_RTT_INT32);
+        ty_pint->data.pointer.base = ty_int;
+        auto raw = createValueData(KOOPA_RVT_GLOBAL_ALLOC, ("@" + ident).c_str(), ty_pint, KOOPA_RSIK_VALUE);
+        raw->kind.data.global_alloc.init = createIntegerValueData(initVal->calculateExp());
+        bufferGlobalValues.push_back(raw);
+        SymbolTable::addItem(ident, raw);
+        return raw;
+    }
 }
 void *LValAST::toKoopa() const {
     //作为右值引用一个符号（如果是变量，必须先Load）
@@ -451,6 +519,10 @@ void *LValAST::toKoopa() const {
         bufferInsts.push_back(raw);
 
         return raw;
+    }
+    else {
+        cerr << "WTF How did u get here" << endl;
+        exit(1);
     }
     return nullptr;
 }
