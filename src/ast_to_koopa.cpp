@@ -134,7 +134,7 @@ void *StmtAST1::toKoopa() const {
 
     koopa_raw_value_data_t *value;
     if(exp == nullptr) {
-        value = createIntegerValueData(0);
+        value = nullptr;
     }
     else {
         value = (koopa_raw_value_data_t *)exp->toKoopa();
