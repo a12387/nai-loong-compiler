@@ -139,7 +139,6 @@ void *StmtAST1::toKoopa() const {
     else {
         value = (koopa_raw_value_data_t *)exp->toKoopa();
     }
-    addItemToSlice(value->used_by, raw);
     raw->kind.data.ret.value = value;
 
     bufferInsts.push_back(raw);
