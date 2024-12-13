@@ -29,7 +29,16 @@ void *CompUnitAST::toKoopa() const {
     initLibFuncs();
     
     for(auto &i : *defs) {
-        i->toKoopa();
+        if(!dynamic_cast<FuncDefAST*>(i.get()))
+            i->toKoopa();
+        else
+            continue;
+    }
+    for(auto &i : *defs) {
+        if(dynamic_cast<FuncDefAST*>(i.get()))
+            i->toKoopa();
+        else
+            continue;
     }
     addItemToSlice(raw->funcs, bufferFuncs);
     addItemToSlice(raw->values, bufferGlobalValues);
