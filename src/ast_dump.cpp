@@ -52,11 +52,18 @@ Value BlockAST::dump() const {
     return v;
 }
 Value StmtAST1::dump() const {
-    Value stmt;
-    stmt["Exp"] = exp->dump();
-    Value v;
-    v["Return"] = stmt;
-    return v;
+    if(exp != nullptr) {
+        Value stmt;
+        stmt["Exp"] = exp->dump();
+        Value v;
+        v["Return"] = stmt;
+        return v;
+    }
+    else {
+        Value v;
+        v["Return"] = "Void";
+        return v;
+    }
 }
 Value StmtAST2::dump() const {
     Value stmt;
