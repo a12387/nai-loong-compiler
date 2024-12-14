@@ -32,15 +32,14 @@ int main(int argc, const char *argv[])
         auto ret = yyparse(ast);
         assert(!ret);
         
-        Json::FastWriter json_writer;
-        Json::Value root;
-        root["CompUnit"] = ast->dump();
-        
         auto raw = ast->toKoopa();
 
-        ofstream out("ast.json", ios::out | ios::trunc);
-        out << json_writer.write(root);
-        out.close();
+        // Json::FastWriter json_writer;
+        // Json::Value root;
+        // root["CompUnit"] = ast->dump();
+        // ofstream out("ast.json", ios::out | ios::trunc);
+        // out << json_writer.write(root);
+        // out.close();
         if(mode[1] == 'k') {
             koopa_program_t program;
             auto ret = koopa_generate_raw_to_koopa((koopa_raw_program_t *)raw, &program);
@@ -52,27 +51,26 @@ int main(int argc, const char *argv[])
         }
         else if (mode[1] == 'r') {
             koopa_program_t program;
-            koopa_error_code_t ret;
-            ret = koopa_generate_raw_to_koopa((koopa_raw_program_t *)raw, &program);
-            assert(ret == KOOPA_EC_SUCCESS);
+            auto ret1 = koopa_generate_raw_to_koopa((koopa_raw_program_t *)raw, &program);
+            assert(ret1 == KOOPA_EC_SUCCESS);
             size_t len;
-            ret = koopa_dump_to_string(program, nullptr, &len);
-            assert(ret == KOOPA_EC_SUCCESS);
-            char *s = new char[2 * len + 1];
-            len *= 2;
-            ret = koopa_dump_to_string(program, s, &len);
+            auto ret2 = koopa_dump_to_string(program, nullptr, &len);
+            assert(ret2 == KOOPA_EC_SUCCESS);
+            char *s = new char[len + 1];
+            auto ret3 = koopa_dump_to_string(program, s, &len + 1);
+            s[len] = '\0';
             
-            if(ret != KOOPA_EC_SUCCESS) {
+            if(ret3 != KOOPA_EC_SUCCESS) {
                 cout << "ERROR ! -" << ret << "\n" << len << endl;
             }
-            ret = koopa_parse_from_string(s, &program);
-            assert(ret == KOOPA_EC_SUCCESS);
+            auto ret4 = koopa_parse_from_string(s, &program);
+            assert(ret4 == KOOPA_EC_SUCCESS);
             koopa_raw_program_builder_t builder = koopa_new_raw_program_builder();
             koopa_raw_program_t raw = koopa_build_raw_program(builder, program);
             koopa_delete_program(program);
 
             koopa_generate_raw_to_koopa(&raw, &program);
-            koopa_dump_to_stdout(program);
+            koopa_dump_to_file(program, "hello.koopa");
 
             ofstream out(output, ios::out | ios::trunc);
             assert(out.is_open());
