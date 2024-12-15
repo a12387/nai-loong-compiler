@@ -446,16 +446,14 @@ void preprocess(const koopa_raw_slice_t &bbs, StackFrame &stackFrame) {
     spill.clear();
     for(int i = 0; i < bbs.len; i++) {
         auto block = (koopa_raw_basic_block_data_t *)bbs.buffer[i];
-        unordered_map<koopa_raw_value_t, int> end;
+        unordered_map<koopa_raw_value_t, int> start, end;
         unordered_map<int, set<koopa_raw_value_t> > use;
         unordered_map<int, koopa_raw_value_t> def;
-        set<koopa_raw_value_t> param_def;
         unordered_map<int, set<koopa_raw_value_t> > extra_def;
-        unordered_map<koopa_raw_value_t, int> def_but_not_used;
+        set<koopa_raw_value_t> def_but_not_used;
         for(int j = 0; j < block->params.len; j++) {
             auto param = (koopa_raw_value_data_t *)block->params.buffer[j];
-            param_def.insert(param);
-            def_but_not_used[param] = -1;
+            def_but_not_used.insert(param);
         }
         for(int j = 0; j < block->insts.len; j++) {
             auto inst = (koopa_raw_value_data_t *)block->insts.buffer[j];
@@ -525,8 +523,10 @@ void preprocess(const koopa_raw_slice_t &bbs, StackFrame &stackFrame) {
                 }
                 if(inst->ty->tag == KOOPA_RTT_INT32) {
                     for(auto iter = def_but_not_used.begin(); iter != def_but_not_used.end(); iter++) {
-                        def.erase(iter->second);
-                        spill.insert(iter->first);
+                        auto s = start.find(*iter);
+                        if(s != start.end())
+                            def.erase(s->second);
+                        spill.insert(*iter);
                         spill_bytes += 4;
                     }
                 }
@@ -535,11 +535,12 @@ void preprocess(const koopa_raw_slice_t &bbs, StackFrame &stackFrame) {
             }
             if(inst->ty->tag == KOOPA_RTT_INT32) {
                 def[j] = inst;
-                def_but_not_used[inst] = j;
+                start[inst] = j;
+                def_but_not_used.insert(inst);
             }
         }
         for(auto iter = def_but_not_used.begin(); iter != def_but_not_used.end(); iter++) {
-            spill.insert(iter->first);
+            spill.insert(*iter);
             spill_bytes += 4;
         }
         // params不参与t0-t5的分配
@@ -555,6 +556,11 @@ void preprocess(const koopa_raw_slice_t &bbs, StackFrame &stackFrame) {
                     if(end[*k] > end[*spill_value]) {
                         spill_value = k;
                     }
+                    else if(end[*k] == end[*spill_value]) {
+                        if(start[*k] < start[*spill_value]) {
+                            spill_value = k;
+                        }
+                    }
                 }
                 spill.insert(*spill_value);
                 active.erase(spill_value);
@@ -564,7 +570,9 @@ void preprocess(const koopa_raw_slice_t &bbs, StackFrame &stackFrame) {
             set<koopa_raw_value_t> temp;
             set_difference(active.begin(), active.end(), use[j].begin(), use[j].end(), inserter(temp, temp.end()));
             active = temp;
-            active.insert(def[j]);
+            auto d = def.find(j);
+            if(d != def.end())
+                active.insert(d->second);
         }
     }
     stackFrame.length += spill_bytes;
