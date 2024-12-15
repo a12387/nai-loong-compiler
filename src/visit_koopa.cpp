@@ -515,7 +515,12 @@ void preprocess(const koopa_raw_slice_t &bbs, StackFrame &stackFrame) {
                 break;
             case KOOPA_RVT_CALL:
                 for(int i = 0; i < inst->kind.data.call.args.len; i++) {
-                    def_but_not_used.erase((koopa_raw_value_t)inst->kind.data.call.args.buffer[i]);
+                    auto v = (koopa_raw_value_t)inst->kind.data.call.args.buffer[i];
+                    end[v] = j;
+                    if(v->kind.tag == KOOPA_RVT_INTEGER && v->kind.data.integer.value != 0)
+                        extra_def[j].insert(v);
+                    else
+                        def_but_not_used.erase(v);
                 }
                 if(inst->ty->tag == KOOPA_RTT_INT32) {
                     for(auto iter = def_but_not_used.begin(); iter != def_but_not_used.end(); iter++) {
