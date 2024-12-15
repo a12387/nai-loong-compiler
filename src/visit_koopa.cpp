@@ -546,6 +546,11 @@ void preprocess(const koopa_raw_slice_t &bbs, StackFrame &stackFrame) {
                 start[inst] = j;
                 def_but_not_used.insert(inst);
             }
+            if(inst->used_by.len == 0) {
+                use[j].insert(inst);
+                end[inst] = j;
+                def_but_not_used.erase(inst);
+            }
         }
         for(auto iter = def_but_not_used.begin(); iter != def_but_not_used.end(); iter++) {
             spill.insert(*iter);
