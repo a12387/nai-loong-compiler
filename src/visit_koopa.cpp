@@ -349,8 +349,12 @@ void getStackLength(const koopa_raw_function_t &func, StackFrame &stackFrame) {
 }
 
 void prologue(ofstream &out, StackFrame &stackFrame) {
-    if(stackFrame.length > 0)
-        out << "    addi sp, sp, " << -stackFrame.length << '\n';
+    if(stackFrame.length > 0) {
+        for(int i = 0; i < stackFrame.length / 2048; i++) {
+            out << "    addi sp, sp, " << -2048 << '\n';
+        }
+        out << "    addi sp, sp, " << -stackFrame.length % 2048 << '\n';
+    }
 
     if(stackFrame.saved_ra) 
         out << "    sw ra, " << stackFrame.length - 4 << "(sp)\n";
@@ -361,8 +365,12 @@ void epilogue(ofstream &out, StackFrame &stackFrame) {
     if(stackFrame.saved_ra) 
         out << "    lw ra, " << stackFrame.length - 4 << "(sp)\n";
     
-    if(stackFrame.length > 0)
-        out << "    addi sp, sp, " << stackFrame.length << '\n';
+    if(stackFrame.length > 0) {
+        for(int i = 0; i < stackFrame.length / 2048; i++) {
+            out << "    addi sp, sp, " << 2048 << '\n';
+        }
+        out << "    addi sp, sp, " << stackFrame.length % 2048 << '\n';
+    }
 }
 
 string getReg(ofstream &out, const koopa_raw_value_t &value, StackFrame &stackFrame, int &shrink) {
