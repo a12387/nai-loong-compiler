@@ -517,6 +517,7 @@ void preprocess(const koopa_raw_slice_t &bbs, StackFrame &stackFrame) {
                 for(int i = 0; i < inst->kind.data.call.args.len; i++) {
                     auto v = (koopa_raw_value_t)inst->kind.data.call.args.buffer[i];
                     end[v] = j;
+                    use[j].insert(v);
                     if(v->kind.tag == KOOPA_RVT_INTEGER && v->kind.data.integer.value != 0)
                         extra_def[j].insert(v);
                     else
