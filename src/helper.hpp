@@ -29,4 +29,3 @@ koopa_raw_value_data_t *createIntegerValueData(int num);
 koopa_raw_value_data_t *createBinaryValueData(koopa_raw_binary_op_t op, 
     koopa_raw_value_data_t *lhs, 
     koopa_raw_value_data_t *rhs);
-void *getLVal(const BaseAST *p);

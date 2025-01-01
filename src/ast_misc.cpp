@@ -51,14 +51,26 @@ ConstDeclAST::ConstDeclAST(BaseAST *p1, vector<unique_ptr<BaseAST> > *p2)
     : bType(p1), constDef(p2) {}
 ConstDefAST::ConstDefAST(const char *p1, BaseAST *p2)
     : ident(p1), constInitVal(p2) {}
+ConstArrayDefAST::ConstArrayDefAST(const char *p1, vector<unique_ptr<BaseAST> > *p2, BaseAST *p3)
+    : ident(p1), exp_length(p2), initVal(p3) {}
 VarDeclAST::VarDeclAST(BaseAST *p1, vector<unique_ptr<BaseAST> > *p2)
     : bType(p1), varDef(p2) {}
 VarDefAST1::VarDefAST1(const char *p)
     : ident(p) {}
+VarArrayDefAST1::VarArrayDefAST1(const char *p1, vector<unique_ptr<BaseAST> > *p2)
+    : ident(p1), exp_length(p2) {}
+VarArrayDefAST2::VarArrayDefAST2(const char *p1, vector<unique_ptr<BaseAST> > *p2, BaseAST *p3)
+    : ident(p1), exp_length(p2), initVal(p3) {}
 VarDefAST2::VarDefAST2(const char *p1, BaseAST *p2)
     : ident(p1), initVal(p2) {}
-LValAST::LValAST(const char *p)
+LValAST1::LValAST1(const char *p)
     : ident(p) {}
+LValAST2::LValAST2(const char *p1, BaseAST *p2)
+    : ident(p1), index(p2) {}
+ConstInitValAST::ConstInitValAST(vector<unique_ptr<BaseAST> > *p)
+    : values(p) {}
+InitValAST::InitValAST(vector<unique_ptr<BaseAST> > *p)
+    : values(p) {}
 // end constructor
 
 // calculateExp
@@ -118,7 +130,7 @@ int LAndExpAST::calculateExp() const {
 int LOrExpAST::calculateExp() const {
     return lOrExp->calculateExp() || lAndExp->calculateExp();
 }
-int LValAST::calculateExp() const {
+int LValAST1::calculateExp() const {
     auto i = SymbolTable::getItem(ident);
     if(i.type == SYMBOLTABLE_ITEM_CONST) 
         return i.data.c;
@@ -233,4 +245,48 @@ void BaseAST::initLibFuncs() {
     auto raw_stoptime = createFuncData("@stoptime", ty_stoptime, KOOPA_RSIK_VALUE, KOOPA_RSIK_BASIC_BLOCK);
     bufferFuncs.push_back(raw_stoptime);
     SymbolTable::addItem("stoptime", raw_stoptime);
+}
+void BaseAST::ArrayDecl::setType(void *p) {
+    declType = (koopa_raw_type_kind_t *)p;
+}
+void BaseAST::ArrayDecl::addDim(int dim) {
+    dims.insert(dims.begin(), dim);
+}
+void BaseAST::ArrayDecl::reset() {
+    arr = nullptr;
+    dims.clear();
+    align = 0;
+}
+void *BaseAST::getLVal(const BaseAST *p) {
+    auto ptr1 = dynamic_cast<const LValAST1*>(p);
+    if(ptr1) {
+        auto i = SymbolTable::getItem(ptr1->ident);
+        if(i.type == SYMBOLTABLE_ITEM_CONST) {
+            cerr << "lvalue required as left operand of assignment" << endl;
+            exit(1);
+        }
+        else if(i.type == SYMBOLTABLE_ITEM_VAR) {
+            return i.data.v;
+        }
+        exit(1);
+    }
+    auto ptr2 = dynamic_cast<const LValAST2*>(p);
+    if(ptr2) {
+        auto raw_index = (koopa_raw_value_data_t *)ptr2->index->toKoopa();
+        auto i = SymbolTable::getItem(ptr2->ident).data.v;
+        auto ty = i->ty->data.pointer.base;
+        koopa_raw_value_data_t *raw_get = i;
+        while(ty->tag == KOOPA_RTT_ARRAY) {
+            auto old_raw_get = raw_get;
+            ty = ty->data.array.base;
+            auto ty_pointer = createTypeKind(KOOPA_RTT_POINTER);
+            ty_pointer->data.pointer.base = ty;
+            raw_get = createValueData(KOOPA_RVT_GET_ELEM_PTR, nullptr, ty_pointer, KOOPA_RSIK_VALUE);
+            raw_get->kind.data.get_elem_ptr.index = raw_index;
+            raw_get->kind.data.get_elem_ptr.src = old_raw_get;
+            bufferInsts.push_back(raw_get);
+        }
+        return raw_get;
+    }
+    exit(1);
 }

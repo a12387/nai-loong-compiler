@@ -121,16 +121,3 @@ koopa_raw_value_data_t *createBinaryValueData(koopa_raw_binary_op_t op,
     raw->kind.data.binary.rhs = rhs;
     return raw;
 }
-void *getLVal(const BaseAST *p) {
-    auto ptr = dynamic_cast<const LValAST*>(p);
-    if(!ptr) exit(1);
-    auto i = SymbolTable::getItem(ptr->ident);
-    if(i.type == SYMBOLTABLE_ITEM_CONST) {
-        cerr << "lvalue required as left operand of assignment" << endl;
-        exit(1);
-    }
-    else if(i.type == SYMBOLTABLE_ITEM_VAR) {
-        return i.data.v;
-    }
-    exit(1);
-}

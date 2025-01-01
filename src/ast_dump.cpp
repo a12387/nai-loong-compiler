@@ -212,6 +212,13 @@ Value ConstDefAST::dump() const {
     v["ConstInitVal"] = constInitVal->dump();
     return v;
 }
+Value ConstArrayDefAST::dump() const {
+    Value v;
+    v["Ident"] = ident;
+    //v["Length"] = exp_length->dump();
+    v["InitList"] = initVal->dump();
+    return v;
+}
 Value VarDeclAST::dump() const {
     Value v;
     v["BType"] = bType->dump(); 
@@ -227,14 +234,61 @@ Value VarDefAST1::dump() const {
     v["Ident"] = ident;
     return v;
 }
+Value VarArrayDefAST1::dump() const {
+    Value v;
+    v["Ident"] = ident;
+    //v["Length"] = exp_length->dump();
+    return v;
+}
+Value VarArrayDefAST2::dump() const {
+    Value v;
+    v["Ident"] = ident;
+    //v["Length"] = exp_length->dump();
+    v["InitList"] = initVal->dump();
+    return v;
+}
 Value VarDefAST2::dump() const {
     Value v;
     v["Ident"] = ident;
     v["InitVal"] = initVal->dump();
     return v;
 }
-Value LValAST::dump() const {
+Value LValAST1::dump() const {
     Value v;
     v["Ident"] = ident;
+    return v;
+}
+Value LValAST2::dump() const {
+    Value v;
+    v["Ident"] = ident;
+    v["Index"] = index->dump();
+    return v;
+}
+Value ConstInitValAST::dump() const {
+    Value v;
+    if(values == nullptr) {
+        v["Array"] = "Empty";
+        return v;
+    }
+
+    Value items;
+    for(int i = 0; i < values->size(); i++) {
+        items[i] = (*values)[i]->dump();
+    }
+    v["Array"] = items;
+    return v;
+}
+Value InitValAST::dump() const {
+    Value v;
+    if(values == nullptr) {
+        v["Array"] = "Empty";
+        return v;
+    }
+
+    Value items;
+    for(int i = 0; i < values->size(); i++) {
+        items[i] = (*values)[i]->dump();
+    }
+    v["Array"] = items;
     return v;
 }

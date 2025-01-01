@@ -441,48 +441,111 @@ void *LOrExpAST::toKoopa() const {
     return param_short;
 }
 void *ConstDeclAST::toKoopa() const {
+    decl->setType(bType->toKoopa());
     for(int i = 0; i < constDef->size(); i++) {
-        (*constDef)[i]->toKoopa();
+        (*constDef)[i]->toKoopa();  
+        decl->reset();  
     }
     return nullptr;
 }
-void *ConstDefAST::toKoopa() const{
+void *ConstDefAST::toKoopa() const {
     SymbolTable::addItem(ident, constInitVal->calculateExp());
     return nullptr;
 }
+void *ConstArrayDefAST::toKoopa() const {
+    auto ty_parray = createTypeKind(KOOPA_RTT_POINTER);
+    auto ty_array = decl->declType;
+    for(int i = exp_length->size() - 1; i >= 0; i--) {
+        auto old_ty_array = ty_array;
+        ty_array = createTypeKind(KOOPA_RTT_ARRAY);
+        ty_array->data.array.base = old_ty_array;
+        int len = (*exp_length)[i]->calculateExp();
+        ty_array->data.array.len = len;
+        decl->addDim(len);
+
+    }
+    ty_parray->data.pointer.base = ty_array;
+
+
+    if(insideFunc) {
+        auto raw1 = createValueData(KOOPA_RVT_ALLOC, ("@" + ident).c_str(), ty_parray, KOOPA_RSIK_VALUE);
+        bufferInsts.push_back(raw1);
+        decl->arr = raw1;
+        auto raw2 = createValueData(KOOPA_RVT_STORE, nullptr, createTypeKind(KOOPA_RTT_UNIT), KOOPA_RSIK_VALUE);
+        raw2->kind.data.store.dest = raw1;
+        raw2->kind.data.store.value = (koopa_raw_value_data_t *)initVal->toKoopa();
+        bufferInsts.push_back(raw2);
+        SymbolTable::addItem(ident, raw1);
+        return raw1;
+    }
+    else {
+        auto raw = createValueData(KOOPA_RVT_GLOBAL_ALLOC, ("@" + ident).c_str(), ty_parray, KOOPA_RSIK_VALUE);
+        decl->arr = raw;
+        raw->kind.data.global_alloc.init = (koopa_raw_value_data_t *)initVal->toKoopa();
+        bufferGlobalValues.push_back(raw);
+        SymbolTable::addItem(ident, raw);
+        return raw;
+    }
+}
 void *VarDeclAST::toKoopa() const {
-    auto ty = createTypeKind(KOOPA_RTT_POINTER);
-    ty->data.pointer.base = (koopa_raw_type_t)bType->toKoopa();
+    decl->setType(bType->toKoopa());
     for(int i = 0; i < varDef->size(); i++) {
-        auto ptr = (koopa_raw_value_data_t *)(*varDef)[i]->toKoopa();
-        ptr->ty = ty;
+        (*varDef)[i]->toKoopa();
     }
     return nullptr;
 }
 void *VarDefAST1::toKoopa() const {
+    auto ty = createTypeKind(KOOPA_RTT_POINTER);
+    ty->data.pointer.base = decl->declType;
     if(insideFunc) {
-        // ty暂时设成nullptr，之后在VarDecl中赋值
-        auto raw = createValueData(KOOPA_RVT_ALLOC, ("@" + ident).c_str(), nullptr, KOOPA_RSIK_VALUE);
+        auto raw = createValueData(KOOPA_RVT_ALLOC, ("@" + ident).c_str(), ty, KOOPA_RSIK_VALUE);
         bufferInsts.push_back(raw);
         SymbolTable::addItem(ident, raw);
         return raw;
     }
     else {
-        auto ty_pint = createTypeKind(KOOPA_RTT_POINTER);
-        auto ty_int = createTypeKind(KOOPA_RTT_INT32);
-        ty_pint->data.pointer.base = ty_int;
-        auto raw = createValueData(KOOPA_RVT_GLOBAL_ALLOC, ("@" + ident).c_str(), ty_pint, KOOPA_RSIK_VALUE);
-        auto zeroinit = createValueData(KOOPA_RVT_ZERO_INIT, nullptr, ty_int, KOOPA_RSIK_VALUE);
+        auto raw = createValueData(KOOPA_RVT_GLOBAL_ALLOC, ("@" + ident).c_str(), ty, KOOPA_RSIK_VALUE);
+        auto zeroinit = createValueData(KOOPA_RVT_ZERO_INIT, nullptr, decl->declType, KOOPA_RSIK_VALUE);
         raw->kind.data.global_alloc.init = zeroinit;
         bufferGlobalValues.push_back(raw);
         SymbolTable::addItem(ident, raw);
         return raw;
     }
 }
-void *VarDefAST2::toKoopa() const {
+void *VarArrayDefAST1::toKoopa() const {
+    auto ty_parray = createTypeKind(KOOPA_RTT_POINTER);
+    auto ty_array = createTypeKind(KOOPA_RTT_ARRAY);
+    auto ty = decl->declType;
+    ty_array->data.array.base = ty;
+    // int len = exp_length->calculateExp();
+    // ty_array->data.array.len = len;
+    ty_parray->data.pointer.base = ty_array;
+
+    // decl->addDim(len);
+
     if(insideFunc) {
-        // ty暂时设成nullptr，之后在VarDecl中赋值
-        auto raw1 = createValueData(KOOPA_RVT_ALLOC, ("@" + ident).c_str(), nullptr, KOOPA_RSIK_VALUE);
+        auto raw1 = createValueData(KOOPA_RVT_ALLOC, ("@" + ident).c_str(), ty_parray, KOOPA_RSIK_VALUE);
+        bufferInsts.push_back(raw1);
+        auto raw2 = createValueData(KOOPA_RVT_STORE, nullptr, createTypeKind(KOOPA_RTT_UNIT), KOOPA_RSIK_VALUE);
+        raw2->kind.data.store.dest = raw1;
+        raw2->kind.data.store.value = createValueData(KOOPA_RVT_ZERO_INIT, nullptr, ty_array, KOOPA_RSIK_VALUE);
+        bufferInsts.push_back(raw2);
+        SymbolTable::addItem(ident, raw1);
+        return raw1;
+    }
+    else {
+        auto raw = createValueData(KOOPA_RVT_GLOBAL_ALLOC, ("@" + ident).c_str(), ty_parray, KOOPA_RSIK_VALUE);
+        raw->kind.data.global_alloc.init = createValueData(KOOPA_RVT_ZERO_INIT, nullptr, ty_array, KOOPA_RSIK_VALUE);
+        bufferGlobalValues.push_back(raw);
+        SymbolTable::addItem(ident, raw);
+        return raw;
+    }
+}
+void *VarDefAST2::toKoopa() const {
+    auto ty = createTypeKind(KOOPA_RTT_POINTER);
+    ty->data.pointer.base = decl->declType;
+    if(insideFunc) {
+        auto raw1 = createValueData(KOOPA_RVT_ALLOC, ("@" + ident).c_str(), ty, KOOPA_RSIK_VALUE);
         bufferInsts.push_back(raw1);
         SymbolTable::addItem(ident, raw1);
 
@@ -498,17 +561,46 @@ void *VarDefAST2::toKoopa() const {
         return raw1;
     }
     else {
-        auto ty_pint = createTypeKind(KOOPA_RTT_POINTER);
-        auto ty_int = createTypeKind(KOOPA_RTT_INT32);
-        ty_pint->data.pointer.base = ty_int;
-        auto raw = createValueData(KOOPA_RVT_GLOBAL_ALLOC, ("@" + ident).c_str(), ty_pint, KOOPA_RSIK_VALUE);
+        auto raw = createValueData(KOOPA_RVT_GLOBAL_ALLOC, ("@" + ident).c_str(), ty, KOOPA_RSIK_VALUE);
         raw->kind.data.global_alloc.init = createIntegerValueData(initVal->calculateExp());
         bufferGlobalValues.push_back(raw);
         SymbolTable::addItem(ident, raw);
         return raw;
     }
 }
-void *LValAST::toKoopa() const {
+void *VarArrayDefAST2::toKoopa() const {
+    auto ty_parray = createTypeKind(KOOPA_RTT_POINTER);
+    auto ty_array = createTypeKind(KOOPA_RTT_ARRAY);
+    auto ty = decl->declType;
+    ty_array->data.array.base = ty;
+    // int len = exp_length->calculateExp();
+    // ty_array->data.array.len = len;
+    // ty_parray->data.pointer.base = ty_array;
+
+    // decl->addDim(len);
+
+    if(insideFunc) {
+        auto raw1 = createValueData(KOOPA_RVT_ALLOC, ("@" + ident).c_str(), ty_parray, KOOPA_RSIK_VALUE);
+        bufferInsts.push_back(raw1);
+        decl->arr = raw1;
+        // auto raw2 = createValueData(KOOPA_RVT_STORE, nullptr, createTypeKind(KOOPA_RTT_UNIT), KOOPA_RSIK_VALUE);
+        // raw2->kind.data.store.dest = raw1;
+        // raw2->kind.data.store.value = (koopa_raw_value_data_t *)initVal->toKoopa();
+        // bufferInsts.push_back(raw2);
+        initVal->toKoopa();
+        SymbolTable::addItem(ident, raw1);
+        return raw1;
+    }
+    else {
+        auto raw = createValueData(KOOPA_RVT_GLOBAL_ALLOC, ("@" + ident).c_str(), ty_parray, KOOPA_RSIK_VALUE);
+        decl->arr = raw;
+        raw->kind.data.global_alloc.init = (koopa_raw_value_data_t *)initVal->toKoopa();
+        bufferGlobalValues.push_back(raw);
+        SymbolTable::addItem(ident, raw);
+        return raw;
+    }
+}
+void *LValAST1::toKoopa() const {
     //作为右值引用一个符号（如果是变量，必须先Load）
     auto i = SymbolTable::getItem(ident);
     auto ty = createTypeKind(KOOPA_RTT_INT32);
@@ -522,8 +614,6 @@ void *LValAST::toKoopa() const {
         auto raw = createValueData(KOOPA_RVT_LOAD, nullptr, ty, KOOPA_RSIK_VALUE);
         raw->kind.data.load.src = src;
 
-        addItemToSlice(src->used_by, raw);
-
         bufferInsts.push_back(raw);
 
         return raw;
@@ -533,4 +623,149 @@ void *LValAST::toKoopa() const {
         exit(1);
     }
     return nullptr;
+}
+void *LValAST2::toKoopa() const {
+    auto raw_index = (koopa_raw_value_data_t *)index->toKoopa();
+    auto i = SymbolTable::getItem(ident).data.v;
+    auto ty = i->ty->data.pointer.base;
+    koopa_raw_value_data_t *raw_get = i;
+    while(ty->tag == KOOPA_RTT_ARRAY) {
+        auto old_raw_get = raw_get;
+        ty = ty->data.array.base;
+        auto ty_pointer = createTypeKind(KOOPA_RTT_POINTER);
+        ty_pointer->data.pointer.base = ty;
+        raw_get = createValueData(KOOPA_RVT_GET_ELEM_PTR, nullptr, ty_pointer, KOOPA_RSIK_VALUE);
+        raw_get->kind.data.get_elem_ptr.index = raw_index;
+        raw_get->kind.data.get_elem_ptr.src = old_raw_get;
+        bufferInsts.push_back(raw_get);
+    }
+    auto raw_load = createValueData(KOOPA_RVT_LOAD, nullptr, ty, KOOPA_RSIK_VALUE);
+    raw_load->kind.data.load.src = raw_get;
+    bufferInsts.push_back(raw_load);
+    return raw_load;
+}
+void *ConstInitValAST::toKoopa() const {
+    // auto raw = createValueData(KOOPA_RVT_AGGREGATE, nullptr, createTypeKind(KOOPA_RTT_INT32), KOOPA_RSIK_VALUE);
+    // raw->kind.data.aggregate.elems = createSlice(KOOPA_RSIK_VALUE);
+    // vector<void *> elems;
+    // if(values != nullptr) {
+    //     for(int i = 0; i < values->size() && i < decl->dims[0]; i++) {
+    //         auto value = createIntegerValueData((*values)[i]->calculateExp());
+    //         elems.push_back(value);
+    //     }
+    // }
+    // for(int i = elems.size(); i < decl->dims[0]; i++) {
+    //     elems.push_back(createIntegerValueData(0));
+    // }
+    // addItemToSlice(raw->kind.data.aggregate.elems, elems);
+    // return raw;
+    deque<vector<void *> > elems(decl->dims.size() - decl->align + 1);
+    auto ty = decl->arr->ty->data.pointer.base;
+    for(int i = 0; i < decl->align; i++) {
+        ty = ty->data.array.base;
+    }
+    if(values == nullptr) {
+        auto zeroinit = createValueData(KOOPA_RVT_ZERO_INIT, nullptr, ty, KOOPA_RSIK_VALUE);
+        return zeroinit;
+    }
+    else {
+        int cur_align = elems.size() - 2;
+        for(int i = 0; i < values->size(); i++) {
+            decl->align += cur_align;
+            auto ptr = (koopa_raw_value_data_t *)(*values)[i]->toKoopa();
+            decl->align -= cur_align;
+
+            if(ptr->kind.tag == KOOPA_RVT_AGGREGATE) {
+                elems[cur_align].push_back(ptr);
+            }
+            else {
+                elems.back().push_back(ptr);
+                cur_align = elems.size() - 1;
+            }
+            for(int j = 0; j < elems.size() - 1; j++) {
+                auto &v = elems[elems.size() - j - 1];
+                int len = v.size();
+                if(len == decl->dims[decl->dims.size() - j - 1]) {
+                    auto ty_base = ((koopa_raw_value_data_t *)v[0])->ty;
+                    koopa_raw_value_data_t *raw;
+                    auto ty_temp = createTypeKind(KOOPA_RTT_ARRAY);
+                    ty_temp->data.array.base = ty_base;
+                    ty_temp->data.array.len = decl->dims[decl->dims.size() - j - 1];
+                    raw = createValueData(KOOPA_RVT_AGGREGATE, nullptr, ty_temp, KOOPA_RSIK_VALUE);
+                    raw->kind.data.aggregate.elems = createSlice(KOOPA_RSIK_VALUE);
+                    addItemToSlice(raw->kind.data.aggregate.elems, v);
+                    v.clear();
+                    elems[elems.size() - j - 2].push_back(raw);
+                    cur_align--;
+                }
+            }
+        }
+        for(int i = cur_align; i > 0; i--) {
+            auto &v = elems[i];
+            auto ty_base = ((koopa_raw_value_data_t *)v[0])->ty;
+            koopa_raw_value_data_t *raw;
+            auto ty_temp = createTypeKind(KOOPA_RTT_ARRAY);
+            ty_temp->data.array.base = ty_base;
+            ty_temp->data.array.len = decl->dims[decl->align + i - 1];
+            raw = createValueData(KOOPA_RVT_AGGREGATE, nullptr, ty_temp, KOOPA_RSIK_VALUE);
+            raw->kind.data.aggregate.elems = createSlice(KOOPA_RSIK_VALUE);
+            auto zeroinit = createValueData(KOOPA_RVT_ZERO_INIT, nullptr, ty_base, KOOPA_RSIK_VALUE);
+            for(int j = v.size(); j < decl->dims[decl->align + i - 1]; j++) {
+                v.push_back(zeroinit);
+            }
+            addItemToSlice(raw->kind.data.aggregate.elems, v);
+            elems[i - 1].push_back(raw);
+        }
+        return elems[0][0];
+        
+    }
+    
+}
+void *InitValAST::toKoopa() const {
+    if(insideFunc) {
+        if(values == nullptr || values->size() < decl->dims[0]) {
+            auto raw_zeroinit = createValueData(KOOPA_RVT_ZERO_INIT, nullptr, decl->arr->ty->data.pointer.base, KOOPA_RSIK_VALUE);
+            auto raw_store = createValueData(KOOPA_RVT_STORE, nullptr, createTypeKind(KOOPA_RTT_UNIT), KOOPA_RSIK_VALUE);
+            raw_store->kind.data.store.dest = decl->arr;
+            raw_store->kind.data.store.value = raw_zeroinit;
+            bufferInsts.push_back(raw_store);
+        }
+        if(values != nullptr) {
+            auto ty_pointer = createTypeKind(KOOPA_RTT_POINTER);
+            ty_pointer->data.pointer.base = decl->declType;
+            for(int i = 0; i < values->size() && i < decl->dims[0]; i++) {
+                auto value = (koopa_raw_value_data_t *)(*values)[i]->toKoopa();
+                auto raw_get = createValueData(KOOPA_RVT_GET_ELEM_PTR, nullptr, ty_pointer, KOOPA_RSIK_VALUE);
+                raw_get->kind.data.get_elem_ptr.src = decl->arr;
+                raw_get->kind.data.get_elem_ptr.index = createIntegerValueData(i);
+                bufferInsts.push_back(raw_get);
+                auto raw_store = createValueData(KOOPA_RVT_STORE, nullptr, createTypeKind(KOOPA_RTT_UNIT), KOOPA_RSIK_VALUE);
+                raw_store->kind.data.store.dest = raw_get;
+                raw_store->kind.data.store.value = value;
+                bufferInsts.push_back(raw_store);
+            }
+        }
+        return nullptr;
+    }
+    else {
+        if(values != nullptr) {
+            auto raw = createValueData(KOOPA_RVT_AGGREGATE, nullptr, createTypeKind(KOOPA_RTT_INT32), KOOPA_RSIK_VALUE);
+            raw->kind.data.aggregate.elems = createSlice(KOOPA_RSIK_VALUE);
+            vector<void *> elems;
+            for(int i = 0; i < values->size() && i < decl->dims[0]; i++) {
+                auto value = createIntegerValueData((*values)[i]->calculateExp());
+                elems.push_back(value);
+            }
+            for(int i = 0; i < decl->dims[0]; i++) {
+                auto value = createIntegerValueData(0);
+                elems.push_back(value);
+            } 
+            addItemToSlice(raw->kind.data.aggregate.elems, elems);
+            return raw;
+        }
+        else {
+            auto raw_zeroinit = createValueData(KOOPA_RVT_ZERO_INIT, nullptr, decl->arr->ty->data.pointer.base, KOOPA_RSIK_VALUE);
+            return raw_zeroinit;
+        }
+    }
 }

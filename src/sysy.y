@@ -44,11 +44,10 @@ using namespace std;
 %token <int_val> INT_CONST
 
 // 非终结符的类型定义
-%type <ast_val> Def FuncDef Type Block BlockItem OpenStmt ClosedStmt NonIfStmt 
+%type <ast_val> Def FuncDef FuncFParam Type Block BlockItem OpenStmt ClosedStmt NonIfStmt 
 %type <ast_val> Exp PrimaryExp UnaryExp AddExp MulExp RelExp EqExp LAndExp LOrExp
 %type <ast_val> Decl ConstDecl ConstDef ConstInitVal LVal ConstExp VarDecl VarDef InitVal
-%type <ast_val> FuncFParam
-%type <vec_val> ConstMultiDef BlockMultiItem VarMultiDef CompUnits FuncFParams FuncRParams
+%type <vec_val> ConstMultiDef BlockMultiItem VarMultiDef CompUnits FuncFParams FuncRParams ConstInitValList InitValList ArrayIndexes
 %type <int_val> Number
 %type <str_val> UnaryOp MulOp AddOp RelOp EqOp
 
@@ -436,11 +435,36 @@ ConstDef
     auto ast = new ConstDefAST($1->c_str(), $3);
     $$ = ast;
   }
+  | IDENT ArrayIndexes '=' ConstInitVal {
+    auto ast = new ConstArrayDefAST($1->c_str(), $2, $4);
+    $$ = ast;
+  }
   ;
 
 ConstInitVal
-  : ConstExp {
+  : '{' '}' {
+    auto ast = new ConstInitValAST(nullptr);
+    $$ = ast;
+  }
+  | '{' ConstInitValList '}' {
+    auto ast = new ConstInitValAST($2);
+    $$ = ast;
+  }
+  | ConstExp {
     $$ = $1;
+  }
+  ;
+
+ConstInitValList
+  : ConstInitValList ',' ConstInitVal {
+    auto vec = $1;
+    vec->push_back(unique_ptr<BaseAST>($3));
+    $$ = vec;
+  }
+  | ConstInitVal {
+    auto vec = new vector<unique_ptr<BaseAST> >;
+    vec->push_back(unique_ptr<BaseAST>($1));
+    $$ = vec;
   }
   ;
 
@@ -473,17 +497,50 @@ VarDef
     auto ast = new VarDefAST2($1->c_str(), $3);
     $$ = ast;
   }
+  | IDENT ArrayIndexes {
+    auto ast = new VarArrayDefAST1($1->c_str(), $2);
+    $$ = ast;
+  }
+  | IDENT ArrayIndexes '=' InitVal {
+    auto ast = new VarArrayDefAST2($1->c_str(), $2, $4);
+    $$ = ast;
+  }
   ;
 
 InitVal
-  : Exp {
+  : '{' '}' {
+    auto ast = new InitValAST(nullptr);
+    $$ = ast;
+  }
+  | '{' InitValList '}' {
+    auto ast = new InitValAST($2);
+    $$ = ast;
+  }
+  | Exp {
     $$ = $1;
+  }
+  ;
+
+InitValList
+  : InitValList ',' InitVal {
+    auto vec = $1;
+    vec->push_back(unique_ptr<BaseAST>($3));
+    $$ = vec;
+  }
+  | InitVal {
+    auto vec = new vector<unique_ptr<BaseAST> >;
+    vec->push_back(unique_ptr<BaseAST>($1));
+    $$ = vec;
   }
   ;
 
 LVal
   : IDENT {
-    auto ast = new LValAST($1->c_str());
+    auto ast = new LValAST1($1->c_str());
+    $$ = ast;
+  }
+  | IDENT '[' Exp ']' {
+    auto ast = new LValAST2($1->c_str(), $3);
     $$ = ast;
   }
   ;
@@ -493,6 +550,18 @@ ConstExp
     $$ = $1;
   }
   ;
+
+ArrayIndexes
+  : ArrayIndexes '[' Exp ']' {
+    auto vec = $1;
+    vec->push_back(unique_ptr<BaseAST>($3));
+    $$ = vec;
+  } 
+  | '[' Exp ']' {
+    auto vec = new vector<unique_ptr<BaseAST> >;
+    vec->push_back(unique_ptr<BaseAST>($2));
+    $$ = vec;
+  }
 
 
 %%
