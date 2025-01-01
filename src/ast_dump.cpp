@@ -261,7 +261,11 @@ Value LValAST1::dump() const {
 Value LValAST2::dump() const {
     Value v;
     v["Ident"] = ident;
-    v["Index"] = index->dump();
+    Value items;
+    for(int i = 0; i < indexes->size(); i++) {
+        items[i] = (*indexes)[i]->dump();
+    }
+    v["Index"] = items;
     return v;
 }
 Value ConstInitValAST::dump() const {

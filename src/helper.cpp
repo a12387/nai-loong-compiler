@@ -121,3 +121,4 @@ koopa_raw_value_data_t *createBinaryValueData(koopa_raw_binary_op_t op,
     raw->kind.data.binary.rhs = rhs;
     return raw;
 }
+

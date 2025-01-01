@@ -539,8 +539,8 @@ LVal
     auto ast = new LValAST1($1->c_str());
     $$ = ast;
   }
-  | IDENT '[' Exp ']' {
-    auto ast = new LValAST2($1->c_str(), $3);
+  | IDENT ArrayIndexes {
+    auto ast = new LValAST2($1->c_str(), $2);
     $$ = ast;
   }
   ;

@@ -41,6 +41,8 @@ protected:
         void setType(void *p);
         void addDim(int dim);
         void reset();
+        void *constArrayToKoopa(vector<unique_ptr<BaseAST> > *values);
+        void initValuesProcess(const unique_ptr<vector<unique_ptr<BaseAST> > > &values, vector<pair<int, BaseAST *> >& index, int &next);
         ArrayDecl() {
             declType = nullptr;
             arr = nullptr;
@@ -376,9 +378,9 @@ public:
 class LValAST2 : public BaseAST {
 public:
     string ident;
-    unique_ptr<BaseAST> index;
+    unique_ptr<vector<unique_ptr<BaseAST> > > indexes;
 
-    LValAST2(const char *p1, BaseAST *p2);
+    LValAST2(const char *p1, vector<unique_ptr<BaseAST> > *p2);
     Json::Value dump() const override;
     void *toKoopa() const override;
 };
