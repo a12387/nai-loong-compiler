@@ -7,8 +7,10 @@ CompUnitAST::CompUnitAST(vector<unique_ptr<BaseAST> > *p)
     : defs(p) {}
 FuncDefAST::FuncDefAST(BaseAST *p1, const char *p2, vector<unique_ptr<BaseAST> > *p3, BaseAST *p4)
     : func_type(p1), ident(p2), fparams(p3), block(p4) {}
-FuncFParamAST::FuncFParamAST(BaseAST *p1, const char *p2)
+FuncFParamAST1::FuncFParamAST1(BaseAST *p1, const char *p2)
     : bType(p1), ident(p2) {}
+FuncFParamAST2::FuncFParamAST2(BaseAST *p1, const char *p2, vector<unique_ptr<BaseAST> > *p3)
+    : bType(p1), ident(p2), exp_length(p3) {}
 TypeAST::TypeAST(const char *p)
     : type(p) {}
 BlockAST::BlockAST(vector<unique_ptr<BaseAST> > *p)
@@ -370,6 +372,7 @@ void *BaseAST::getLVal(const BaseAST *p) {
             exit(1);
         }
         else if(i.type == SYMBOLTABLE_ITEM_VAR) {
+            // 赋值语句里无方括号的LVal似乎不会有改变？
             return i.data.v;
         }
         exit(1);
@@ -380,16 +383,34 @@ void *BaseAST::getLVal(const BaseAST *p) {
         auto ty = i->ty->data.pointer.base;
         koopa_raw_value_data_t *raw_get = i;
         int j = 0;
-        while(ty->tag == KOOPA_RTT_ARRAY) {
-            auto old_raw_get = raw_get;
-            ty = ty->data.array.base;
-            auto ty_pointer = createTypeKind(KOOPA_RTT_POINTER);
-            ty_pointer->data.pointer.base = ty;
-            raw_get = createValueData(KOOPA_RVT_GET_ELEM_PTR, nullptr, ty_pointer, KOOPA_RSIK_VALUE);
-            auto raw_index = (koopa_raw_value_data_t *)(*ptr2->indexes)[j]->toKoopa();
-            raw_get->kind.data.get_elem_ptr.index = raw_index;
-            raw_get->kind.data.get_elem_ptr.src = old_raw_get;
-            bufferInsts.push_back(raw_get);
+        while(j < ptr2->indexes->size()) {
+                if(ty->tag == KOOPA_RTT_ARRAY) {
+                auto old_raw_get = raw_get;
+                ty = ty->data.array.base;
+                auto ty_pointer = createTypeKind(KOOPA_RTT_POINTER);
+                ty_pointer->data.pointer.base = ty;
+                raw_get = createValueData(KOOPA_RVT_GET_ELEM_PTR, nullptr, ty_pointer, KOOPA_RSIK_VALUE);
+                auto raw_index = (koopa_raw_value_data_t *)(*ptr2->indexes)[j++]->toKoopa();
+                raw_get->kind.data.get_elem_ptr.index = raw_index;
+                raw_get->kind.data.get_elem_ptr.src = old_raw_get;
+                bufferInsts.push_back(raw_get);
+            }
+            else if(ty->tag == KOOPA_RTT_POINTER) {
+                auto raw_load = createValueData(KOOPA_RVT_LOAD, nullptr, ty, KOOPA_RSIK_VALUE);
+                raw_load->kind.data.load.src = raw_get;
+                bufferInsts.push_back(raw_load);
+                raw_get = raw_load;
+                auto old_raw_get = raw_get;
+                raw_get = createValueData(KOOPA_RVT_GET_PTR, nullptr, ty, KOOPA_RSIK_VALUE);
+                ty = ty->data.pointer.base;
+                auto raw_index = (koopa_raw_value_data_t *)(*ptr2->indexes)[j++]->toKoopa();
+                raw_get->kind.data.get_ptr.index = raw_index;
+                raw_get->kind.data.get_ptr.src = old_raw_get;
+                bufferInsts.push_back(raw_get);
+            }
+            else {
+                break;
+            }
         }
         return raw_get;
     }

@@ -100,9 +100,24 @@ void *FuncDefAST::toKoopa() const {
     SymbolTable::removeTable();
     return rawfunc;
 }
-void *FuncFParamAST::toKoopa() const {
+void *FuncFParamAST1::toKoopa() const {
     auto ty = (koopa_raw_type_kind_t *)bType->toKoopa();
     auto raw = createValueData(KOOPA_RVT_FUNC_ARG_REF, ("%" + ident).c_str(), ty, KOOPA_RSIK_VALUE);
+    return raw;
+}
+void *FuncFParamAST2::toKoopa() const {
+    auto ty = (koopa_raw_type_kind_t *)bType->toKoopa();
+    if(exp_length != nullptr) {
+        for(int i = exp_length->size() - 1; i >= 0; i--) {
+            auto ty_array = createTypeKind(KOOPA_RTT_ARRAY);
+            ty_array->data.array.base = ty;
+            ty_array->data.array.len = (*exp_length)[i]->calculateExp();
+            ty = ty_array;
+        }
+    }
+    auto ty_ptr = createTypeKind(KOOPA_RTT_POINTER);
+    ty_ptr->data.pointer.base = ty;
+    auto raw = createValueData(KOOPA_RVT_FUNC_ARG_REF, ("%" + ident).c_str(), ty_ptr, KOOPA_RSIK_VALUE);
     return raw;
 }
 void *TypeAST::toKoopa() const {
@@ -201,9 +216,8 @@ void *IfAST1::toKoopa() const {
     raw->kind.data.branch.cond = cond;
 
     auto true_bb = createBasicBlockData("%then", KOOPA_RSIK_VALUE, KOOPA_RSIK_VALUE, KOOPA_RSIK_VALUE);
-    addItemToSlice(true_bb->used_by, raw);
     auto false_bb = createBasicBlockData("%end", KOOPA_RSIK_VALUE, KOOPA_RSIK_VALUE,KOOPA_RSIK_VALUE);
-    addItemToSlice(false_bb->used_by, raw);
+
     
     bufferBlocks.push_back(true_bb);
     stmtThen->toKoopa();
@@ -228,11 +242,13 @@ void *IfAST2::toKoopa() const {
     endBlock();
 
     raw->kind.data.branch.cond = cond;
+
     auto true_bb = createBasicBlockData("%then", KOOPA_RSIK_VALUE, KOOPA_RSIK_VALUE, KOOPA_RSIK_VALUE);
-    addItemToSlice(true_bb->used_by, raw);
-    auto false_bb = createBasicBlockData("%else", KOOPA_RSIK_VALUE, KOOPA_RSIK_VALUE,KOOPA_RSIK_VALUE);
-    addItemToSlice(false_bb->used_by, raw);
-    auto end_bb = createBasicBlockData("%end", KOOPA_RSIK_VALUE, KOOPA_RSIK_VALUE,KOOPA_RSIK_VALUE);
+
+    auto false_bb = createBasicBlockData("%else", KOOPA_RSIK_VALUE, KOOPA_RSIK_VALUE, KOOPA_RSIK_VALUE);
+
+    auto end_bb = createBasicBlockData("%end", KOOPA_RSIK_VALUE, KOOPA_RSIK_VALUE, KOOPA_RSIK_VALUE);
+    
 
     bufferBlocks.push_back(true_bb);
     stmtThen->toKoopa();
@@ -255,7 +271,7 @@ void *IfAST2::toKoopa() const {
 }
 void *WhileAST::toKoopa() const {
     auto ty_unit = createTypeKind(KOOPA_RTT_UNIT);
-
+    
     auto block_while_entry = createBasicBlockData("%while_entry", KOOPA_RSIK_VALUE, KOOPA_RSIK_VALUE, KOOPA_RSIK_VALUE);
     auto block_while_body = createBasicBlockData("%while_body", KOOPA_RSIK_VALUE, KOOPA_RSIK_VALUE, KOOPA_RSIK_VALUE);
     auto block_while_end = createBasicBlockData("%while_end", KOOPA_RSIK_VALUE, KOOPA_RSIK_VALUE, KOOPA_RSIK_VALUE);
@@ -609,7 +625,6 @@ void *VarArrayDefAST2::toKoopa() const {
 void *LValAST1::toKoopa() const {
     //作为右值引用一个符号（如果是变量，必须先Load）
     auto i = SymbolTable::getItem(ident);
-    auto ty = createTypeKind(KOOPA_RTT_INT32);
 
     if(i.type == SYMBOLTABLE_ITEM_CONST) {
         return createIntegerValueData(i.data.c);
@@ -617,12 +632,26 @@ void *LValAST1::toKoopa() const {
     else if (i.type == SYMBOLTABLE_ITEM_VAR) {
         auto src = i.data.v;
 
-        auto raw = createValueData(KOOPA_RVT_LOAD, nullptr, ty, KOOPA_RSIK_VALUE);
-        raw->kind.data.load.src = src;
+        auto ty = src->ty->data.pointer.base;
+        if(ty->tag != KOOPA_RTT_ARRAY) {
+            auto raw = createValueData(KOOPA_RVT_LOAD, nullptr, ty, KOOPA_RSIK_VALUE);
+            raw->kind.data.load.src = src;
 
-        bufferInsts.push_back(raw);
-
-        return raw;
+            bufferInsts.push_back(raw);
+            return raw;
+        }
+        else {
+            ty = ty->data.array.base;
+            auto ty_pointer = createTypeKind(KOOPA_RTT_POINTER);
+            ty_pointer->data.pointer.base = ty;
+            auto raw_get = createValueData(KOOPA_RVT_GET_ELEM_PTR, nullptr, ty_pointer, KOOPA_RSIK_VALUE);
+            raw_get->kind.data.get_elem_ptr.index = createIntegerValueData(0);
+            raw_get->kind.data.get_elem_ptr.src = src;
+            src = raw_get;
+            bufferInsts.push_back(raw_get);
+            
+            return src;
+        }
     }
     else {
         cerr << "WTF How did u get here" << endl;
@@ -634,24 +663,56 @@ void *LValAST2::toKoopa() const {
     
     auto i = SymbolTable::getItem(ident).data.v;
     auto ty = i->ty->data.pointer.base;
-    koopa_raw_value_data_t *raw_get = i;
+    koopa_raw_value_data_t *src = i;
     int j = 0;
-    while(ty->tag == KOOPA_RTT_ARRAY) {
-        auto old_raw_get = raw_get;
+    while(j < indexes->size()) {
+        if(ty->tag == KOOPA_RTT_ARRAY) {
+            auto old_raw_get = src;
+            ty = ty->data.array.base;
+            auto ty_pointer = createTypeKind(KOOPA_RTT_POINTER);
+            ty_pointer->data.pointer.base = ty;
+            src = createValueData(KOOPA_RVT_GET_ELEM_PTR, nullptr, ty_pointer, KOOPA_RSIK_VALUE);
+            auto raw_index = (koopa_raw_value_data_t *)(*indexes)[j++]->toKoopa();
+            src->kind.data.get_elem_ptr.index = raw_index;
+            src->kind.data.get_elem_ptr.src = old_raw_get;
+            bufferInsts.push_back(src);
+        }
+        else if(ty->tag == KOOPA_RTT_POINTER) {
+            auto raw_load = createValueData(KOOPA_RVT_LOAD, nullptr, ty, KOOPA_RSIK_VALUE);
+            raw_load->kind.data.load.src = src;
+            bufferInsts.push_back(raw_load);
+            src = raw_load;
+            auto old_raw_get = src;
+            src = createValueData(KOOPA_RVT_GET_PTR, nullptr, ty, KOOPA_RSIK_VALUE);
+            ty = ty->data.pointer.base;
+            auto raw_index = (koopa_raw_value_data_t *)(*indexes)[j++]->toKoopa();
+            src->kind.data.get_ptr.index = raw_index;
+            src->kind.data.get_ptr.src = old_raw_get;
+            bufferInsts.push_back(src);
+        }
+        else {
+            break;
+        }
+    }
+    if(ty->tag == KOOPA_RTT_ARRAY) {
+
         ty = ty->data.array.base;
         auto ty_pointer = createTypeKind(KOOPA_RTT_POINTER);
         ty_pointer->data.pointer.base = ty;
-        raw_get = createValueData(KOOPA_RVT_GET_ELEM_PTR, nullptr, ty_pointer, KOOPA_RSIK_VALUE);
-        auto raw_index = (koopa_raw_value_data_t *)(*indexes)[j]->toKoopa();
-        raw_get->kind.data.get_elem_ptr.index = raw_index;
-        raw_get->kind.data.get_elem_ptr.src = old_raw_get;
+        auto raw_get = createValueData(KOOPA_RVT_GET_ELEM_PTR, nullptr, ty_pointer, KOOPA_RSIK_VALUE);
+        raw_get->kind.data.get_elem_ptr.index = createIntegerValueData(0);
+        raw_get->kind.data.get_elem_ptr.src = src;
+        src = raw_get;
         bufferInsts.push_back(raw_get);
-        j++;
+        
+        return src;
     }
-    auto raw_load = createValueData(KOOPA_RVT_LOAD, nullptr, ty, KOOPA_RSIK_VALUE);
-    raw_load->kind.data.load.src = raw_get;
-    bufferInsts.push_back(raw_load);
-    return raw_load;
+    else {
+        auto raw_load = createValueData(KOOPA_RVT_LOAD, nullptr, ty, KOOPA_RSIK_VALUE);
+        raw_load->kind.data.load.src = src;
+        bufferInsts.push_back(raw_load);
+        return raw_load;
+    }
 }
 void *ConstInitValAST::toKoopa() const {
     return decl->constArrayToKoopa(values.get());

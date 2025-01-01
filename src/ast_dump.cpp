@@ -1,6 +1,6 @@
 #include "ast.hpp"
 using namespace Json;
-
+#ifdef DUMP
 Value CompUnitAST::dump() const {
     Value comp_unit;
     for(auto &i : *defs)
@@ -26,7 +26,7 @@ Value FuncDefAST::dump() const {
 
     return v;
 }
-Value FuncFParamAST::dump() const {
+Value FuncFParamAST1::dump() const {
     Value v;
     v["BType"] = bType->dump();
     v["Ident"] = ident;
@@ -296,3 +296,4 @@ Value InitValAST::dump() const {
     v["Array"] = items;
     return v;
 }
+#endif

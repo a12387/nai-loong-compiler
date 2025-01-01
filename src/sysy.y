@@ -112,7 +112,15 @@ FuncFParams
 
 FuncFParam
   : Type IDENT {
-    auto ast = new FuncFParamAST($1, $2->c_str());
+    auto ast = new FuncFParamAST1($1, $2->c_str());
+    $$ = ast;
+  }
+  | Type IDENT '[' ']' {
+    auto ast = new FuncFParamAST2($1, $2->c_str(), nullptr);
+    $$ = ast;
+  }
+  | Type IDENT '[' ']' ArrayIndexes {
+    auto ast = new FuncFParamAST2($1, $2->c_str(), $5);
     $$ = ast;
   }
   ;

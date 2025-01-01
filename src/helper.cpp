@@ -94,9 +94,12 @@ koopa_raw_basic_block_data_t *createBasicBlockData(
     koopa_raw_slice_item_kind_t insts_kind) {
     auto raw = new koopa_raw_basic_block_data_t;
     
+
     if(name != nullptr) {
-        auto n = new char[strlen(name) + 1];
-        strcpy(n, name);
+        string name_str = name;
+        SymbolTable::getAvailableName(name_str);
+        auto n = new char[name_str.length() + 1];
+        strcpy(n, name_str.c_str());
         raw->name = n;
     }
     else {

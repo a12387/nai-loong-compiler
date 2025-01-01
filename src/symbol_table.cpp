@@ -9,8 +9,7 @@ Item SymbolTable::getItem(string ident) {
             return iter->second;
         }
     }
-    cerr << "Use of undeclared identifier: " << ident << endl;
-    exit(1);
+    return Item();
 }
 Item SymbolTable::getItem(string ident, ItemType type) {
     for(int i = tables.size() - 1; i >= 0; i--) {
@@ -22,6 +21,18 @@ Item SymbolTable::getItem(string ident, ItemType type) {
     }
     cerr << "Use of undeclared identifier: " << ident << endl;
     exit(1);
+}
+void SymbolTable::getAvailableName(string &ident) {
+    
+    for(int i = tables.size() - 1; i >= 0; i--) {
+        auto &table = tables[i];
+        string id = ident.substr(1);
+        auto iter = table.find(id);
+        if(iter != table.end()) {
+            ident += "_";
+            i = tables.size();
+        }
+    }
 }
 void SymbolTable::addItem(string ident, int c) {
     auto &table = tables.back();
