@@ -29,6 +29,9 @@ public:
         stackFrame[ptr] = currentPos;
         currentPos += size;
     }
+    void insert(void *ptr, int pos) {
+        stackFrame[ptr] = pos;
+    }
     void addToLastFrame(void *ptr, int size) {
         stackFrame[ptr] = lastCurrentPos;
         lastCurrentPos += size;
