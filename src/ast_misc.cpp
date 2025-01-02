@@ -271,14 +271,14 @@ void *BaseAST::ArrayDecl::constArrayToKoopa(vector<unique_ptr<BaseAST> > *values
     }
     int cur_align = 1;
     for(int i = 0; i < values->size(); i++) {
-        align += cur_align;
-        auto ptr = (koopa_raw_value_data_t *)(*values)[i]->toKoopa();
-        align -= cur_align;
-
-        if(ptr->kind.tag == KOOPA_RVT_AGGREGATE || ptr->kind.tag == KOOPA_RVT_ZERO_INIT) {
+        if(dynamic_cast<ConstInitValAST*>((*values)[i].get()) || dynamic_cast<InitValAST*>((*values)[i].get())) {
+            align += cur_align;
+            auto ptr = (koopa_raw_value_data_t *)(*values)[i]->toKoopa();
+            align -= cur_align;
             elems[cur_align].push_back(ptr);
         }
         else {
+            auto ptr = createIntegerValueData((*values)[i]->calculateExp());
             elems.back().push_back(ptr);
             cur_align = elems.size() - 1;
         }
