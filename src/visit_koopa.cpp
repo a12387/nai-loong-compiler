@@ -509,6 +509,10 @@ void visit(ofstream &out, const koopa_raw_get_elem_ptr_t &getelem, StackFrame &s
         }
         else if(src->kind.tag == KOOPA_RVT_ALLOC){
             out << "    add t" << r << ", sp" << ", " << regb << endl;
+            while(origin >= 2048) {
+                out << "    addi t" << r << ", t" << r << ", " << 2047 << endl;
+                origin -= 2047;
+            }
             out << "    addi t" << r << ", t" << r << ", " << origin << endl;
         }
         else {
@@ -546,6 +550,10 @@ void visit(ofstream &out, const koopa_raw_get_ptr_t &getptr, StackFrame &stackFr
         }
         else if(src->kind.tag == KOOPA_RVT_ALLOC){
             out << "    add t" << r << ", sp" << ", " << regb << endl;
+            while(origin >= 2048) {
+                out << "    addi t" << r << ", t" << r << ", " << 2047 << endl;
+                origin -= 2047;
+            }
             out << "    addi t" << r << ", t" << r << ", " << origin << endl;
         }
         else {
@@ -612,10 +620,12 @@ int getArraySize(const koopa_raw_type_t &ty) {
 
 void prologue(ofstream &out, StackFrame &stackFrame) {
     if(stackFrame.length > 0) {
-        for(int i = 0; i < stackFrame.length / 2032; i++) {
-            out << "    addi sp, sp, " << -2032 << '\n';
+        int l = stackFrame.length;
+        while(l > 2048) {
+            out << "    addi sp, sp, -2048\n";
+            l -= 2048;
         }
-        out << "    addi sp, sp, " << -stackFrame.length % 2032 << '\n';
+        out << "    addi sp, sp, " << -l << '\n';
     }
 
     if(stackFrame.saved_ra) {
@@ -654,10 +664,12 @@ void epilogue(ofstream &out, StackFrame &stackFrame) {
     }
     
     if(stackFrame.length > 0) {
-        for(int i = 0; i < stackFrame.length / 2032; i++) {
-            out << "    addi sp, sp, " << 2032 << '\n';
+        int l = stackFrame.length;
+        while(l >= 2048) {
+            out << "    addi sp, sp, 2047\n";
+            l -= 2047;
         }
-        out << "    addi sp, sp, " << stackFrame.length % 2032 << '\n';
+        out << "    addi sp, sp, " << l << '\n';
     }
 }
 
