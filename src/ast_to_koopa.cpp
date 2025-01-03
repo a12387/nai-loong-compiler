@@ -546,6 +546,10 @@ void *VarArrayDefAST1::toKoopa() const {
     if(insideFunc) {
         auto raw1 = createValueData(KOOPA_RVT_ALLOC, ("@" + ident).c_str(), ty_parray, KOOPA_RSIK_VALUE);
         bufferInsts.push_back(raw1);
+        auto raw2 = createValueData(KOOPA_RVT_STORE, nullptr, createTypeKind(KOOPA_RTT_UNIT), KOOPA_RSIK_VALUE);
+        raw2->kind.data.store.dest = raw1;
+        raw2->kind.data.store.value = createValueData(KOOPA_RVT_ZERO_INIT, nullptr, ty_array, KOOPA_RSIK_VALUE);
+        bufferInsts.push_back(raw2);
         SymbolTable::addItem(ident, raw1);
         return raw1;
     }
@@ -601,6 +605,10 @@ void *VarArrayDefAST2::toKoopa() const {
         auto raw1 = createValueData(KOOPA_RVT_ALLOC, ("@" + ident).c_str(), ty_parray, KOOPA_RSIK_VALUE);
         decl->arr = raw1;
         bufferInsts.push_back(raw1);
+        auto raw_store = createValueData(KOOPA_RVT_STORE, nullptr, createTypeKind(KOOPA_RTT_UNIT), KOOPA_RSIK_VALUE);
+        raw_store->kind.data.store.dest = raw1;
+        raw_store->kind.data.store.value = createValueData(KOOPA_RVT_ZERO_INIT, nullptr, ty_array, KOOPA_RSIK_VALUE);
+        bufferInsts.push_back(raw_store);
         initVal->toKoopa();
         SymbolTable::addItem(ident, raw1);
         return raw1;

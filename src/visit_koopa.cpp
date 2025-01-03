@@ -117,12 +117,7 @@ void visit(ofstream &out, const koopa_raw_value_t &value, StackFrame &stackFrame
         break;
     case KOOPA_RVT_BINARY:// int32
         visit(out, kind.data.binary, stackFrame);
-        if(value->used_by.len > 0) {
-            registers[ptr] = "t" + to_string(last_reg);
-        }
-        else {
-            reg[last_reg] = false;
-        }
+        registers[ptr] = "t" + to_string(last_reg);
         break;
     case KOOPA_RVT_ALLOC:// pointer xxx
         {
@@ -184,7 +179,7 @@ void visit(ofstream &out, const koopa_raw_value_t &value, StackFrame &stackFrame
         break;
     case KOOPA_RVT_CALL:
         visit(out, kind.data.call, stackFrame);
-        if(value->ty->tag == KOOPA_RTT_INT32) {
+        if(value->ty->tag != KOOPA_RTT_UNIT) {
             last_reg = newReg();
             out << "    mv t" << last_reg << ", a0\n";
             registers[ptr] = "t" + to_string(last_reg);
@@ -203,6 +198,11 @@ void visit(ofstream &out, const koopa_raw_value_t &value, StackFrame &stackFrame
     }
 
     if(value->ty->tag != KOOPA_RTT_UNIT && kind.tag != KOOPA_RVT_BLOCK_ARG_REF && kind.tag != KOOPA_RVT_FUNC_ARG_REF) {
+        if(value->used_by.len == 0) {
+            registers.erase(ptr);
+            reg[last_reg] = false;
+        }
+        // 这两者应该不会同时出现，一个不被用到的value等同于被当场use，不会轮到它来spill
         if(spill.find(value) != spill.end()) {
             stackFrame.add(ptr, 4);
             int pos = stackFrame.find(ptr);
