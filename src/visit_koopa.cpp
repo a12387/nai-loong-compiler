@@ -446,12 +446,14 @@ void visit(ofstream &out, const koopa_raw_branch_t &branch, StackFrame &stackFra
         regc = "t" + to_string(r);
     }
     visitParams(out, true_args, stackFrame);
-    out << "    bnez " << regc << ", " << current_func << "_" << &(true_bb->name[1]) << endl;
+    out << "    bnez " << regc << ", j" << current_func << "_" << &(true_bb->name[1]) << endl;
     if(regc[0] == 't') {
         reg[regc[1]-'0'] = false;
     }
     visitParams(out, false_args, stackFrame);
     out << "    j " << current_func << "_" << &(false_bb->name[1]) << endl;
+    out << "j" << current_func << "_" << &(true_bb->name[1]) << ":\n";
+    out << "    j " << current_func << "_" << &(true_bb->name[1]) << endl;
 }
 
 void visit(ofstream &out, const koopa_raw_jump_t &jump, StackFrame &stackFrame) {
@@ -568,27 +570,22 @@ void getStackLength(const koopa_raw_function_t &func, StackFrame &stackFrame) {
                     max_args = max(max_args, value->kind.data.call.args.len - 8);
                 }
             }
-            switch(value->ty->tag) {
-            case KOOPA_RTT_POINTER:
-                {
-                    int incr = 1;
-                    auto ty = value->ty->data.pointer.base;
-                    while(true) {
-                        if(ty->tag == KOOPA_RTT_ARRAY) {
-                            incr *= ty->data.array.len;
-                            ty = ty->data.array.base;
-                        }
-                        else {
-                            break;
-                        }
+            
+            if(value->kind.tag == KOOPA_RVT_ALLOC)
+            {
+                int incr = 1;
+                auto ty = value->ty->data.pointer.base;
+                while(true) {
+                    if(ty->tag == KOOPA_RTT_ARRAY) {
+                        incr *= ty->data.array.len;
+                        ty = ty->data.array.base;
                     }
-                    incr *= 4;
-                    ret += incr;
+                    else {
+                        break;
+                    }
                 }
-            case KOOPA_RTT_INT32:
-            case KOOPA_RTT_UNIT:
-            default:
-                break;
+                incr *= 4;
+                ret += incr;
             }
         }
     }
