@@ -23,7 +23,10 @@ public:
         stackFrame = {};
     }
     int find(void *ptr) {
-        return stackFrame[ptr];
+        auto iter = stackFrame.find(ptr);
+        if(iter != stackFrame.end())
+            return iter->second;
+        return -1;
     }
     void add(void *ptr, int size) {
         stackFrame[ptr] = currentPos;

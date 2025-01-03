@@ -1,5 +1,6 @@
 #pragma once
 #include "koopa.h"
+#include "helper.hpp"
 #include "stack_frame.hpp"
 #include <fstream>
 #include <vector>
@@ -25,6 +26,7 @@ void visit(ofstream &out, const koopa_raw_branch_t &branch, StackFrame &stackFra
 void visit(ofstream &out, const koopa_raw_jump_t &jump, StackFrame &stackFrame);
 void visit(ofstream &out, const koopa_raw_call_t &call, StackFrame &stackFrame);
 void visit(ofstream &out, const koopa_raw_get_elem_ptr_t &getelem, StackFrame &stackFrame);
+void visit(ofstream &out, const koopa_raw_get_ptr_t &getptr, StackFrame &stackFrame);
 void getStackLength(const koopa_raw_function_t &func, StackFrame &stackFrame);
 int getArraySize(const koopa_raw_type_t &ty);
 void prologue(ofstream &out, StackFrame &stackFrame);
