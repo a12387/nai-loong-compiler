@@ -862,19 +862,20 @@ void preprocess(const koopa_raw_slice_t &bbs, StackFrame &stackFrame) {
                     auto v = inst->kind.data.load.src;
                     if(v->kind.tag == KOOPA_RVT_ALLOC)
                         break;
-                    if(!(v->kind.tag == KOOPA_RVT_INTEGER && v->kind.data.integer.value == 0)) {       
+                    if(!(v->kind.tag == KOOPA_RVT_INTEGER && v->kind.data.integer.value == 0) && v->kind.tag != KOOPA_RVT_ALLOC) {       
                         end[v] = j;
                         use[j].insert(v);
                     }
                     if(v->kind.tag == KOOPA_RVT_INTEGER && v->kind.data.integer.value != 0)
                         extra_def[j].insert(v);
-                    else
+                    else if(v->kind.tag != KOOPA_RVT_ALLOC)
                         def_but_not_used.erase(v);
                 }
                 break;
             case KOOPA_RVT_STORE:
                 {
                     auto v = inst->kind.data.store.value;
+                    auto d = inst->kind.data.store.dest;
                     if(!(v->kind.tag == KOOPA_RVT_INTEGER && v->kind.data.integer.value == 0)) {       
                         end[v] = j;
                         use[j].insert(v);
@@ -883,6 +884,15 @@ void preprocess(const koopa_raw_slice_t &bbs, StackFrame &stackFrame) {
                         extra_def[j].insert(v);
                     else
                         def_but_not_used.erase(v);
+
+                    if(!(d->kind.tag == KOOPA_RVT_INTEGER && d->kind.data.integer.value == 0) && d->kind.tag != KOOPA_RVT_ALLOC) {       
+                        end[d] = j;
+                        use[j].insert(d);
+                    }
+                    if(d->kind.tag == KOOPA_RVT_INTEGER && d->kind.data.integer.value != 0)
+                        extra_def[j].insert(d);
+                    else if(d->kind.tag != KOOPA_RVT_ALLOC)
+                        def_but_not_used.erase(d);
                 }
                 break;
             case KOOPA_RVT_BRANCH:
