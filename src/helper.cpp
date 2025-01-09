@@ -124,4 +124,11 @@ koopa_raw_value_data_t *createBinaryValueData(koopa_raw_binary_op_t op,
     raw->kind.data.binary.rhs = rhs;
     return raw;
 }
+void clearAddItemToSlice(koopa_raw_slice_t &slice, vector<const void*> &buffer) {
+    auto newbuf = new const void *[buffer.size()];
+    delete[] slice.buffer;
+    copy(buffer.begin(), buffer.end(), newbuf);
+    slice.len = buffer.size();
+    slice.buffer = newbuf;
+}
 

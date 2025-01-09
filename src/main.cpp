@@ -13,6 +13,7 @@
 #include "ast.hpp"
 #include "koopa.h"
 #include "visit_koopa.hpp"
+#include "optimizer.hpp"
 
 using namespace std;
 
@@ -31,11 +32,11 @@ int main(int argc, const char *argv[])
     auto ret = yyparse(ast);
     assert(!ret);
     
-    auto raw = ast->toKoopa();
-
+    auto raw = (koopa_raw_program_t *)ast->toKoopa();
+    Optimizer::optimize(raw);
     if(mode[1] == 'k') {
         koopa_program_t program;
-        auto ret = koopa_generate_raw_to_koopa((koopa_raw_program_t *)raw, &program);
+        auto ret = koopa_generate_raw_to_koopa(raw, &program);
         if(ret != KOOPA_EC_SUCCESS) {
             cout << ret << endl;
         }
@@ -44,7 +45,7 @@ int main(int argc, const char *argv[])
     }
     else if (mode[1] == 'r' || mode[1] == 'p') {
         koopa_program_t program;
-        auto ret1 = koopa_generate_raw_to_koopa((koopa_raw_program_t *)raw, &program);
+        auto ret1 = koopa_generate_raw_to_koopa(raw, &program);
         assert(ret1 == KOOPA_EC_SUCCESS);
         size_t len;
         auto ret2 = koopa_dump_to_string(program, nullptr, &len);
