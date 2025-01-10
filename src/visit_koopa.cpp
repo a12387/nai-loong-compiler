@@ -1027,6 +1027,16 @@ void preprocess(const koopa_raw_slice_t &bbs, StackFrame &stackFrame) {
         }
         // params不参与t0-t5的分配
 
+        for(auto &[pos, s] : use) {
+            set<koopa_raw_value_t> tmp;
+            for(auto &ptr : s) {
+                if(end[ptr] == pos) {
+                    tmp.insert(ptr);
+                }
+            }
+            s = tmp;
+        }
+
         set<koopa_raw_value_t> active;
         for(int j = 0; j < block->insts.len; j++) {
             //auto inst = (koopa_raw_value_data_t *)block->insts.buffer[j];
