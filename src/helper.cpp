@@ -131,4 +131,14 @@ void clearAddItemToSlice(koopa_raw_slice_t &slice, vector<const void*> &buffer) 
     slice.len = buffer.size();
     slice.buffer = newbuf;
 }
+int getArraySize(const koopa_raw_type_t &ty) {
+    auto ty_ = ty;
+    int ret = 1;
+    while(ty_->tag == KOOPA_RTT_ARRAY) {
+        ret *= ty_->data.array.len;
+        ty_ = ty_->data.array.base;
+    }
+    ret *= 4;
+    return ret;
+}
 

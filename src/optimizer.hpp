@@ -1,13 +1,21 @@
 #pragma once
 #include "ast.hpp"
 #include "helper.hpp"
+
 class Optimizer {
 public:
     static void optimize(koopa_raw_program_t *raw) {
-        constantFolding(raw);
+        while(true) {
+            bool t = false;
+            t = constantFolding(raw) || t;
+            t = constantPropagation(raw) || t;
+            if(!t)
+                break; 
+        }
     }
 private:
-    static void constantFolding(koopa_raw_program_t *raw) {
+    static bool constantFolding(koopa_raw_program_t *raw) {
+        bool flag = false;
         for(int _i = 0; _i < raw->funcs.len; _i++) {
             auto func = (koopa_raw_function_data_t *)raw->funcs.buffer[_i];
             for(int _j = 0; _j < func->bbs.len; _j++) {
@@ -21,6 +29,7 @@ private:
                         auto binary = inst->kind.data.binary;
                         if(binary.lhs->kind.tag == KOOPA_RVT_INTEGER
                         && binary.rhs->kind.tag == KOOPA_RVT_INTEGER) {
+                            flag = true;
                             int l = binary.lhs->kind.data.integer.value;
                             int r = binary.rhs->kind.data.integer.value;
                             int result = 0;
@@ -81,7 +90,6 @@ private:
                             }
                             inst->kind.tag = KOOPA_RVT_INTEGER;
                             inst->kind.data.integer.value = result;
-                            inst->name = nullptr;
                             flag_join = false;
                             flag_change = true;
                         }
@@ -95,5 +103,45 @@ private:
                 }
             }
         }
+        return flag;
+    }
+    static bool constantPropagation(koopa_raw_program_t *raw) {
+        bool flag = false;
+        for(int _i = 0; _i < raw->funcs.len; _i++) {
+            auto func = (koopa_raw_function_data_t *)raw->funcs.buffer[_i];
+            for(int _j = 0; _j < func->bbs.len; _j++) {
+                auto bb = (koopa_raw_basic_block_data_t *)func->bbs.buffer[_j];
+                bool flag_change = false;
+                vector<const void *> buffer;
+                unordered_map<koopa_raw_value_t, int> consts;
+                for(int _k = 0; _k < bb->insts.len; _k++) {
+                    auto inst = (koopa_raw_value_data_t *)bb->insts.buffer[_k];
+                    bool flag_join = true;
+                    if(inst->kind.tag == KOOPA_RVT_STORE) {
+                        auto store = inst->kind.data.store;
+                        if(store.value->kind.tag == KOOPA_RVT_INTEGER) {
+                            consts[store.dest] = store.value->kind.data.integer.value;
+                        }
+                    }
+                    else if(inst->kind.tag == KOOPA_RVT_LOAD) {
+                        auto iter = consts.find(inst->kind.data.load.src);
+                        if(iter != consts.end()) {
+                            flag = true;
+                            inst->kind.tag = KOOPA_RVT_INTEGER;
+                            inst->kind.data.integer.value = iter->second;
+                            flag_join = false;
+                            flag_change = true;
+                        }
+                    }
+                    if(flag_join) {
+                        buffer.push_back(inst);
+                    }
+                }
+                if(flag_change) {
+                    clearAddItemToSlice(bb->insts, buffer);
+                }
+            }
+        }
+        return flag;
     }
 };

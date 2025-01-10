@@ -1,5 +1,6 @@
 #include <cassert>
 #include "visit_koopa.hpp"
+#include "helper.hpp"
 #include <cstring>
 
 using namespace std;
@@ -605,17 +606,6 @@ void getStackLength(const koopa_raw_function_t &func, StackFrame &stackFrame) {
     stackFrame.paramsLength = max_args * 4;
     stackFrame.length += ret;
     stackFrame.align();
-}
-
-int getArraySize(const koopa_raw_type_t &ty) {
-    auto ty_ = ty;
-    int ret = 1;
-    while(ty_->tag == KOOPA_RTT_ARRAY) {
-        ret *= ty_->data.array.len;
-        ty_ = ty_->data.array.base;
-    }
-    ret *= 4;
-    return ret;
 }
 
 void prologue(ofstream &out, StackFrame &stackFrame) {
