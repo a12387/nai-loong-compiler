@@ -809,29 +809,35 @@ void preprocess(const koopa_raw_slice_t &bbs, StackFrame &stackFrame) {
     for(int i = 0; i < bbs.len; i++) {
         auto block = (koopa_raw_basic_block_data_t *)bbs.buffer[i];
         unordered_map<koopa_raw_value_t, int> start, end;
-        unordered_map<int, set<koopa_raw_value_t> > use;
-        unordered_map<int, koopa_raw_value_t> def;
-        unordered_map<int, set<koopa_raw_value_t> > extra_def;
-        set<koopa_raw_value_t> def_but_not_used;
-        for(int j = 0; j < block->params.len; j++) {
-            auto param = (koopa_raw_value_data_t *)block->params.buffer[j];
-            def_but_not_used.insert(param);
-        }
-        for(int j = 0; j < block->insts.len; j++) {
+        vector<set<koopa_raw_value_t> > conflict(block->insts.len + 1);
+        conflict.back() = {};
+        set<koopa_raw_value_t> def = {}, use = {}, temp_num = {}, temp_diff = {};
+        for(int j = block->insts.len - 1; j >= 0; j--) {
             auto inst = (koopa_raw_value_data_t *)block->insts.buffer[j];
+
+            // 初始化活跃变量列表，下一句中使用的常数只在下一句中活跃。
+            conflict[j] = set<koopa_raw_value_t>(conflict[j + 1]);
+            set_difference(conflict[j].begin(), conflict[j].end(), temp_num.begin(), temp_num.end(), inserter(temp_diff, temp_diff.begin()));
+            conflict[j] = temp_diff;
+            temp_diff.clear();
+            temp_num.clear();
+            def.clear();
+            use.clear();
+
             switch(inst->kind.tag) {
             case KOOPA_RVT_RETURN: 
                 {
                     auto v = inst->kind.data.ret.value;
                     if(v != nullptr) {
+                        use.insert(v);
                         if(!(v->kind.tag == KOOPA_RVT_INTEGER && v->kind.data.integer.value == 0)) {       
-                            end[v] = j;
-                            use[j].insert(v);
+                            if(end.find(v) == end.end()) {
+                                end[v] = j;
+                            }
                         }
-                        if(v->kind.tag == KOOPA_RVT_INTEGER && v->kind.data.integer.value != 0)
-                            extra_def[j].insert(v);
-                        else 
-                            def_but_not_used.erase(v);
+                        if(v->kind.tag == KOOPA_RVT_INTEGER && v->kind.data.integer.value != 0) {
+                            temp_num.insert(v);
+                        }
                     }
                 }
                 break;
@@ -839,22 +845,24 @@ void preprocess(const koopa_raw_slice_t &bbs, StackFrame &stackFrame) {
                 {
                     auto l = inst->kind.data.binary.lhs;
                     auto r = inst->kind.data.binary.rhs;
+                    use.insert(l);
                     if(!(l->kind.tag == KOOPA_RVT_INTEGER && l->kind.data.integer.value == 0)) {
-                        end[l] = j;
-                        use[j].insert(l);
+                        if(end.find(l) == end.end()) {
+                            end[l] = j;
+                        }
                     }
+                    use.insert(r);
                     if(!(r->kind.tag == KOOPA_RVT_INTEGER && r->kind.data.integer.value == 0)) {
-                        end[r] = j;
-                        use[j].insert(r);
+                        if(end.find(r) == end.end()) {
+                            end[r] = j;
+                        }
                     }
-                    if(l->kind.tag == KOOPA_RVT_INTEGER && l->kind.data.integer.value != 0)
-                        extra_def[j].insert(l);
-                    else if(l->kind.tag != KOOPA_RVT_INTEGER)
-                        def_but_not_used.erase(l);
-                    if(r->kind.tag == KOOPA_RVT_INTEGER && r->kind.data.integer.value != 0)
-                        extra_def[j].insert(r);
-                    else if(r->kind.tag != KOOPA_RVT_INTEGER)
-                        def_but_not_used.erase(r);
+                    if(l->kind.tag == KOOPA_RVT_INTEGER && l->kind.data.integer.value != 0) {
+                        temp_num.insert(l);
+                    }
+                    if(r->kind.tag == KOOPA_RVT_INTEGER && r->kind.data.integer.value != 0) {
+                        temp_num.insert(r);
+                    }
                 }
                 break;
             case KOOPA_RVT_LOAD:
@@ -862,107 +870,94 @@ void preprocess(const koopa_raw_slice_t &bbs, StackFrame &stackFrame) {
                     auto v = inst->kind.data.load.src;
                     if(v->kind.tag == KOOPA_RVT_ALLOC)
                         break;
+                    use.insert(v);
                     if(!(v->kind.tag == KOOPA_RVT_INTEGER && v->kind.data.integer.value == 0) && v->kind.tag != KOOPA_RVT_ALLOC) {       
-                        end[v] = j;
-                        use[j].insert(v);
+                        if(end.find(v) == end.end()) {
+                            end[v] = j;
+                        }
                     }
-                    if(v->kind.tag == KOOPA_RVT_INTEGER && v->kind.data.integer.value != 0)
-                        extra_def[j].insert(v);
-                    else if(v->kind.tag != KOOPA_RVT_ALLOC)
-                        def_but_not_used.erase(v);
                 }
                 break;
             case KOOPA_RVT_STORE:
                 {
                     auto v = inst->kind.data.store.value;
                     auto d = inst->kind.data.store.dest;
+                    use.insert(v);
                     if(!(v->kind.tag == KOOPA_RVT_INTEGER && v->kind.data.integer.value == 0)) {       
-                        end[v] = j;
-                        use[j].insert(v);
+                        if(end.find(v) == end.end()) {
+                            end[v] = j;
+                        }
                     }
                     if(v->kind.tag == KOOPA_RVT_INTEGER && v->kind.data.integer.value != 0)
-                        extra_def[j].insert(v);
-                    else
-                        def_but_not_used.erase(v);
+                        temp_num.insert(v);
 
+                    use.insert(d);
                     if(!(d->kind.tag == KOOPA_RVT_INTEGER && d->kind.data.integer.value == 0) && d->kind.tag != KOOPA_RVT_ALLOC) {       
-                        end[d] = j;
-                        use[j].insert(d);
+                        if(end.find(d) == end.end()) {
+                            end[d] = j;
+                        }
                     }
-                    if(d->kind.tag == KOOPA_RVT_INTEGER && d->kind.data.integer.value != 0)
-                        extra_def[j].insert(d);
-                    else if(d->kind.tag != KOOPA_RVT_ALLOC)
-                        def_but_not_used.erase(d);
                 }
                 break;
             case KOOPA_RVT_BRANCH:
                 {
                     auto c = inst->kind.data.branch.cond;
+                    use.insert(c);
                     if(!(c->kind.tag == KOOPA_RVT_INTEGER && c->kind.data.integer.value == 0)) {       
-                        end[c] = j;
-                        use[j].insert(c);
+                        if(end.find(c) == end.end()) {
+                            end[c] = j;
+                        }
                     }
                     if(c->kind.tag == KOOPA_RVT_INTEGER && c->kind.data.integer.value != 0)
-                        extra_def[j].insert(c);
-                    else
-                        def_but_not_used.erase(c);
+                        temp_num.insert(c);
                 }
                 for(int k = 0; k < inst->kind.data.branch.true_args.len; k++) {
                     auto v = (koopa_raw_value_t)inst->kind.data.branch.true_args.buffer[k];
+                    use.insert(v);
                     if(!(v->kind.tag == KOOPA_RVT_INTEGER && v->kind.data.integer.value == 0)) {       
-                        end[v] = j;
-                        use[j].insert(v);
+                        if(end.find(v) == end.end()) {
+                            end[v] = j;
+                        }
                     }
                     if(v->kind.tag == KOOPA_RVT_INTEGER && v->kind.data.integer.value != 0)
-                        extra_def[j].insert(v);
-                    else
-                        def_but_not_used.erase(v);
+                        temp_num.insert(v);
                 }
                 for(int k = 0; k < inst->kind.data.branch.false_args.len; k++) {
                     auto v = (koopa_raw_value_t)inst->kind.data.branch.false_args.buffer[k];
+                    use.insert(v);
                     if(!(v->kind.tag == KOOPA_RVT_INTEGER && v->kind.data.integer.value == 0)) {       
-                        end[v] = j;
-                        use[j].insert(v);
+                        if(end.find(v) == end.end()) {
+                            end[v] = j;
+                        }
                     }
                     if(v->kind.tag == KOOPA_RVT_INTEGER && v->kind.data.integer.value != 0)
-                        extra_def[j].insert(v);
-                    else
-                        def_but_not_used.erase(v);
+                        temp_num.insert(v);
                 }
                 break;
             case KOOPA_RVT_CALL:
                 for(int k = 0; k < inst->kind.data.call.args.len; k++) {
                     auto v = (koopa_raw_value_t)inst->kind.data.call.args.buffer[k];
+                    use.insert(v);
                     if(!(v->kind.tag == KOOPA_RVT_INTEGER && v->kind.data.integer.value == 0)) {       
-                        end[v] = j;
-                        use[j].insert(v);
+                        if(end.find(v) == end.end()) {
+                            end[v] = j;
+                        }
                     }
                     if(v->kind.tag == KOOPA_RVT_INTEGER && v->kind.data.integer.value != 0)
-                        extra_def[j].insert(v);
-                    else
-                        def_but_not_used.erase(v);
-                }
-                if(inst->ty->tag == KOOPA_RTT_INT32) {
-                    for(auto iter = def_but_not_used.begin(); iter != def_but_not_used.end(); iter++) {
-                        auto s = start.find(*iter);
-                        if(s != start.end())
-                            def.erase(s->second);
-                        spill.insert(*iter);
-                        spill_bytes += 4;
-                    }
+                        temp_num.insert(v);
                 }
                 break;
             case KOOPA_RVT_JUMP:
                 for(int k = 0; k < inst->kind.data.jump.args.len; k++) {
                     auto v = (koopa_raw_value_t)inst->kind.data.jump.args.buffer[k];
+                    use.insert(v);
                     if(!(v->kind.tag == KOOPA_RVT_INTEGER && v->kind.data.integer.value == 0)) {       
-                        end[v] = j;
-                        use[j].insert(v);
+                        if(end.find(v) == end.end()) {
+                            end[v] = j;
+                        }
                     }
                     if(v->kind.tag == KOOPA_RVT_INTEGER && v->kind.data.integer.value != 0)
-                        extra_def[j].insert(v);
-                    else
-                        def_but_not_used.erase(v);
+                        temp_num.insert(v);
                 }
                 break;
             case KOOPA_RVT_GET_ELEM_PTR:
@@ -970,25 +965,22 @@ void preprocess(const koopa_raw_slice_t &bbs, StackFrame &stackFrame) {
                     auto s = inst->kind.data.get_elem_ptr.src;
                     auto x = inst->kind.data.get_elem_ptr.index;
                     auto b = createIntegerValueData(0); // 占位符，代表数组大小所用的寄存器
-                    end[b] = j;
-                    use[j].insert(b);
-                    extra_def[j].insert(b);
+                    use.insert(b);
+                    temp_num.insert(b);
+                    use.insert(s);
                     if(!(s->kind.tag == KOOPA_RVT_INTEGER && s->kind.data.integer.value == 0) && s->kind.tag != KOOPA_RVT_ALLOC) {
-                        end[s] = j;
-                        use[j].insert(s);
+                        if(end.find(s) == end.end()) {
+                            end[s] = j;
+                        }
                     }
+                    use.insert(x);
                     if(!(x->kind.tag == KOOPA_RVT_INTEGER && x->kind.data.integer.value == 0)) {
-                        end[x] = j;
-                        use[j].insert(x);
+                        if(end.find(x) == end.end()) {
+                            end[x] = j;
+                        }
                     }
-                    if(s->kind.tag == KOOPA_RVT_INTEGER && s->kind.data.integer.value != 0)
-                        extra_def[j].insert(s);
-                    else if(s->kind.tag != KOOPA_RVT_INTEGER && s->kind.tag != KOOPA_RVT_ALLOC)
-                        def_but_not_used.erase(s);
                     if(x->kind.tag == KOOPA_RVT_INTEGER && x->kind.data.integer.value != 0)
-                        extra_def[j].insert(x);
-                    else if(x->kind.tag != KOOPA_RVT_INTEGER)
-                        def_but_not_used.erase(x);
+                        temp_num.insert(x);
                 }
                 break;
             case KOOPA_RVT_GET_PTR:
@@ -996,55 +988,60 @@ void preprocess(const koopa_raw_slice_t &bbs, StackFrame &stackFrame) {
                     auto s = inst->kind.data.get_ptr.src;
                     auto x = inst->kind.data.get_ptr.index;
                     auto b = createIntegerValueData(0); // 占位符，代表数组大小所用的寄存器
-                    end[b] = j;
-                    use[j].insert(b);
-                    extra_def[j].insert(b);
+                    use.insert(b);
+                    temp_num.insert(b);
+                    use.insert(s);
                     if(!(s->kind.tag == KOOPA_RVT_INTEGER && s->kind.data.integer.value == 0) && s->kind.tag != KOOPA_RVT_ALLOC) {
-                        end[s] = j;
-                        use[j].insert(s);
+                        if(end.find(s) == end.end()) {
+                            end[s] = j;
+                        }
                     }
+                    use.insert(x);
                     if(!(x->kind.tag == KOOPA_RVT_INTEGER && x->kind.data.integer.value == 0)) {
-                        end[x] = j;
-                        use[j].insert(x);
+                        if(end.find(x) == end.end()) {
+                            end[x] = j;
+                        }
                     }
-                    if(s->kind.tag == KOOPA_RVT_INTEGER && s->kind.data.integer.value != 0)
-                        extra_def[j].insert(s);
-                    else if(s->kind.tag != KOOPA_RVT_INTEGER &&s->kind.tag != KOOPA_RVT_ALLOC)
-                        def_but_not_used.erase(s);
                     if(x->kind.tag == KOOPA_RVT_INTEGER && x->kind.data.integer.value != 0)
-                        extra_def[j].insert(x);
-                    else if(x->kind.tag != KOOPA_RVT_INTEGER)
-                        def_but_not_used.erase(x);
+                        temp_num.insert(x);
                 }
                 break;
             default:
                 break;
             }
             if(inst->ty->tag != KOOPA_RTT_UNIT && inst->kind.tag != KOOPA_RVT_ALLOC) {
-                def[j] = inst;
+                if(conflict[j].find(inst) != conflict[j].end())
+                    conflict[j].erase(inst);
+                else {
+                    // 在本基本块内没有使用的，溢出
+                    spill.insert(inst);
+                    spill_bytes += 4;
+                }
                 start[inst] = j;
-                def_but_not_used.insert(inst);
             }
-            if(inst->ty->tag != KOOPA_RTT_UNIT && inst->used_by.len == 0) {
-                use[j].insert(inst);
-                end[inst] = j;
-                def_but_not_used.erase(inst);
+            if(inst->kind.tag == KOOPA_RVT_CALL) {
+                // 特殊情况：调用函数，调用前所有活跃的变量全部设spill
+                spill.insert(conflict[j].begin(), conflict[j].end());
+                spill_bytes += 4 * conflict[j].size();
+            }
+            conflict[j].insert(use.begin(), use.end());
+        }
+        // params不参与t0-t5的分配，但是若本基本块内有未使用的，仍溢出
+        for(int i = 0; i < block->params.len; i++) {
+            auto p = (koopa_raw_value_t)block->params.buffer[i];
+            if(conflict[0].find(p) == conflict[0].end()) {
+                spill.insert(p);
+                spill_bytes += 4;
             }
         }
-        for(auto iter = def_but_not_used.begin(); iter != def_but_not_used.end(); iter++) {
-            spill.insert(*iter);
-            spill_bytes += 4;
-        }
-        // params不参与t0-t5的分配
 
-        set<koopa_raw_value_t> active;
+        
+
         for(int j = 0; j < block->insts.len; j++) {
-            //auto inst = (koopa_raw_value_data_t *)block->insts.buffer[j];
-            active.insert(extra_def[j].begin(), extra_def[j].end());
 
-            while(active.size() > 6) {
-                auto spill_value = active.begin();
-                for(auto k = active.begin(); k != active.end(); k++) {
+            while(conflict[j].size() > 6) {
+                auto spill_value = conflict[j].begin();
+                for(auto k = conflict[j].begin(); k != conflict[j].end(); k++) {
                     if(end[*k] > end[*spill_value]) {
                         spill_value = k;
                     }
@@ -1055,16 +1052,10 @@ void preprocess(const koopa_raw_slice_t &bbs, StackFrame &stackFrame) {
                     }
                 }
                 spill.insert(*spill_value);
-                active.erase(spill_value);
+                conflict[j].erase(spill_value);
                 if((*spill_value)->ty->tag == KOOPA_RTT_INT32)
                     spill_bytes += 4;
             }
-            set<koopa_raw_value_t> temp;
-            set_difference(active.begin(), active.end(), use[j].begin(), use[j].end(), inserter(temp, temp.end()));
-            active = temp;
-            auto d = def.find(j);
-            if(d != def.end())
-                active.insert(d->second);
         }
     }
     stackFrame.length += spill_bytes;
