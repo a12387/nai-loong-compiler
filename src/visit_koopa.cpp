@@ -1066,8 +1066,7 @@ void preprocess(const koopa_raw_slice_t &bbs, StackFrame &stackFrame) {
                 }
                 spill.insert(*spill_value);
                 active.erase(spill_value);
-                if((*spill_value)->ty->tag == KOOPA_RTT_INT32)
-                    spill_bytes += 4;
+                spill_bytes += 4;
             }
             set<koopa_raw_value_t> temp;
             set_difference(active.begin(), active.end(), use[j].begin(), use[j].end(), inserter(temp, temp.end()));
