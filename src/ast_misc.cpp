@@ -384,7 +384,7 @@ void *BaseAST::getLVal(const BaseAST *p) {
         koopa_raw_value_data_t *raw_get = i;
         int j = 0;
         while(j < ptr2->indexes->size()) {
-                if(ty->tag == KOOPA_RTT_ARRAY) {
+            if(ty->tag == KOOPA_RTT_ARRAY) {
                 auto old_raw_get = raw_get;
                 ty = ty->data.array.base;
                 auto ty_pointer = createTypeKind(KOOPA_RTT_POINTER);

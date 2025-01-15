@@ -33,7 +33,8 @@ int main(int argc, const char *argv[])
     assert(!ret);
     
     auto raw = (koopa_raw_program_t *)ast->toKoopa();
-    Optimizer::optimize(raw);
+    if(mode[2] == 'e')
+        Optimizer::optimize(raw);
     if(mode[1] == 'k') {
         koopa_program_t program;
         auto ret = koopa_generate_raw_to_koopa(raw, &program);

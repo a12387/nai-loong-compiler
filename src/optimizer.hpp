@@ -1,6 +1,7 @@
 #pragma once
 #include "ast.hpp"
 #include "helper.hpp"
+#include <map>
 
 class Optimizer {
 public:
@@ -113,25 +114,81 @@ private:
                 auto bb = (koopa_raw_basic_block_data_t *)func->bbs.buffer[_j];
                 bool flag_change = false;
                 vector<const void *> buffer;
-                unordered_map<koopa_raw_value_t, int> consts;
+                map<pair<koopa_raw_value_t, int>, int> consts;
                 for(int _k = 0; _k < bb->insts.len; _k++) {
                     auto inst = (koopa_raw_value_data_t *)bb->insts.buffer[_k];
                     bool flag_join = true;
                     if(inst->kind.tag == KOOPA_RVT_STORE) {
                         auto store = inst->kind.data.store;
                         if(store.value->kind.tag == KOOPA_RVT_INTEGER) {
-                            consts[store.dest] = store.value->kind.data.integer.value;
+                            if(store.dest->kind.tag == KOOPA_RVT_ALLOC) {
+                                consts[make_pair(store.dest, -1)] = store.value->kind.data.integer.value;
+                            }
+                            else {
+                                auto d = store.dest;
+                                int bias = 0;
+                                bool flag_unknown = false;
+                                while(d->kind.tag == KOOPA_RVT_GET_ELEM_PTR) {
+                                    if(d->kind.data.get_elem_ptr.index->kind.tag != KOOPA_RVT_INTEGER) {
+                                        flag_unknown = true;
+                                        break;
+                                    }
+                                    bias += getArraySize(d->ty->data.pointer.base) * d->kind.data.get_elem_ptr.index->kind.data.integer.value;
+                                    d = d->kind.data.get_elem_ptr.src;
+                                }
+                                if(!flag_unknown)
+                                    consts[make_pair(d, bias)] = store.value->kind.data.integer.value;
+                            }
                         }
                     }
                     else if(inst->kind.tag == KOOPA_RVT_LOAD) {
-                        auto iter = consts.find(inst->kind.data.load.src);
-                        if(iter != consts.end()) {
-                            flag = true;
-                            inst->kind.tag = KOOPA_RVT_INTEGER;
-                            inst->kind.data.integer.value = iter->second;
-                            flag_join = false;
-                            flag_change = true;
+                        auto load = inst->kind.data.load;
+                        if(load.src->kind.tag == KOOPA_RVT_ALLOC) {
+                            auto iter = consts.find(make_pair(inst->kind.data.load.src, -1));
+                            if(iter != consts.end()) {
+                                flag = true;
+                                inst->kind.tag = KOOPA_RVT_INTEGER;
+                                inst->kind.data.integer.value = iter->second;
+                                flag_join = false;
+                                flag_change = true;
+                            }
                         }
+                        else if(load.src->kind.tag != KOOPA_RVT_GLOBAL_ALLOC) {
+                            auto last = (koopa_raw_value_t)buffer.back();
+                            int bias = 0;
+                            bool flag_unknown = false;
+                            vector<const void *> tmp;
+                            while(last->kind.tag == KOOPA_RVT_GET_ELEM_PTR) {
+                                buffer.pop_back();
+                                tmp.push_back(last);
+                                if(last->kind.data.get_elem_ptr.index->kind.tag != KOOPA_RVT_INTEGER) {
+                                    buffer.insert(buffer.end(), tmp.rbegin(), tmp.rend());
+                                    flag_unknown = true;
+                                    break;
+                                }
+                                bias += getArraySize(last->ty->data.pointer.base) * last->kind.data.get_elem_ptr.index->kind.data.integer.value;
+                                if(last->kind.data.get_elem_ptr.src->kind.tag == KOOPA_RVT_ALLOC || last->kind.data.get_elem_ptr.src->kind.tag == KOOPA_RVT_GLOBAL_ALLOC) {
+                                    last = last->kind.data.get_elem_ptr.src;
+                                    break;
+                                }
+                                last = (koopa_raw_value_data_t *)buffer.back();
+                            }
+                            if(!flag_unknown) {
+                                auto iter = consts.find(make_pair(last, bias));
+                                if(iter != consts.end()) {
+                                    flag = true;
+                                    inst->kind.tag = KOOPA_RVT_INTEGER;
+                                    inst->kind.data.integer.value = iter->second;
+                                    flag_join = false;
+                                    flag_change = true;
+                                }
+                                else {
+                                    buffer.insert(buffer.end(), tmp.rbegin(), tmp.rend());
+                                }
+                            }
+                        }
+                        
+                        
                     }
                     if(flag_join) {
                         buffer.push_back(inst);
