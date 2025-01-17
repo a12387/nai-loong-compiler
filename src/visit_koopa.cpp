@@ -8,7 +8,7 @@ using namespace std;
 static bool isZero = false;
 static unordered_map<void *, string> registers;
 static unordered_map<void *, int> used_time;
-static bool reg[6] = {false, false, false, false, false, false};
+static bool reg[11] = {false, false, false, false, false, false, false, false, false, false, false};
 static int last_reg = -1;
 static set<koopa_raw_value_t> spill;
 static string current_func;
@@ -118,7 +118,7 @@ void visit(ofstream &out, const koopa_raw_value_t &value, StackFrame &stackFrame
         break;
     case KOOPA_RVT_BINARY:// int32
         visit(out, kind.data.binary, stackFrame);
-        registers[ptr] = "t" + to_string(last_reg);
+        registers[ptr] = "s" + to_string(last_reg);
         break;
     case KOOPA_RVT_ALLOC:// pointer xxx
         {
@@ -134,7 +134,7 @@ void visit(ofstream &out, const koopa_raw_value_t &value, StackFrame &stackFrame
         break;
     case KOOPA_RVT_LOAD:// int32
         visit(out, kind.data.load, stackFrame);
-        registers[ptr] = "t" + to_string(last_reg);
+        registers[ptr] = "s" + to_string(last_reg);
         break;
     case KOOPA_RVT_STORE:// unit
         visit(out, kind.data.store, stackFrame);
@@ -182,17 +182,17 @@ void visit(ofstream &out, const koopa_raw_value_t &value, StackFrame &stackFrame
         visit(out, kind.data.call, stackFrame);
         if(value->ty->tag != KOOPA_RTT_UNIT) {
             last_reg = newReg();
-            out << "    mv t" << last_reg << ", a0\n";
-            registers[ptr] = "t" + to_string(last_reg);
+            out << "    mv s" << last_reg << ", a0\n";
+            registers[ptr] = "s" + to_string(last_reg);
         }
         break;
     case KOOPA_RVT_GET_ELEM_PTR:
         visit(out, kind.data.get_elem_ptr, stackFrame);
-        registers[ptr] = "t" + to_string(last_reg);
+        registers[ptr] = "s" + to_string(last_reg);
         break;
     case KOOPA_RVT_GET_PTR:
         visit(out, kind.data.get_ptr, stackFrame);
-        registers[ptr] = "t" + to_string(last_reg);
+        registers[ptr] = "s" + to_string(last_reg);
         break;
     default:
         assert(false);
@@ -214,10 +214,10 @@ void visit(ofstream &out, const koopa_raw_value_t &value, StackFrame &stackFrame
                     out << "    addi t6, t6, 2047\n";
                     pos -= 2047;
                 }
-                out << "    sw t" << last_reg << ", " << pos << "(t6)\n";
+                out << "    sw s" << last_reg << ", " << pos << "(t6)\n";
             }
             else {
-                out << "    sw t" << last_reg << ", " << pos << "(sp)\n";
+                out << "    sw s" << last_reg << ", " << pos << "(sp)\n";
             }
             reg[last_reg] = false;
             registers.erase(ptr);
@@ -240,7 +240,7 @@ void visit(ofstream &out, const koopa_raw_integer_t &integer) {
     }
     else {
         last_reg = newReg();
-        out << "    li t" << last_reg << ", " << integer.value << "\n";
+        out << "    li s" << last_reg << ", " << integer.value << "\n";
     }
 }
 
@@ -253,18 +253,18 @@ void visit(ofstream &out, const koopa_raw_binary_t &binary, StackFrame &stackFra
     string regr = getReg(out, rhs, stackFrame, false);
     if(lhs->kind.tag == KOOPA_RVT_INTEGER || used_time[(void *)&lhs->kind] >= lhs->used_by.len) {
         registers.erase((void *)&lhs->kind);
-        if(regl[0] == 't') {
-            reg[regl[1] - '0'] = false;
+        if(regl[0] == 's') {
+            reg[atoi(regl.c_str() + 1)] = false;
         }
     }
     if(rhs->kind.tag == KOOPA_RVT_INTEGER || used_time[(void *)&rhs->kind] >= rhs->used_by.len) {
         registers.erase((void *)&rhs->kind);
-        if(regr[0] == 't') {
-            reg[regr[1] - '0'] = false;
+        if(regr[0] == 's') {
+            reg[atoi(regr.c_str() + 1)] = false;
         }
     }
     last_reg = newReg();
-    string reg_dest = "t" + to_string(last_reg);
+    string reg_dest = "s" + to_string(last_reg);
     
     switch(binary.op) {
     case KOOPA_RBO_ADD:
@@ -317,8 +317,8 @@ void visit(ofstream &out, const koopa_raw_load_t &load, StackFrame &stackFrame) 
     void *ptr = (void *)&load.src->kind;
     if(load.src->kind.tag == KOOPA_RVT_GLOBAL_ALLOC) {
         last_reg = newReg();
-        out << "    la t" << last_reg << ", " << &(load.src->name[1]) << endl;
-        out << "    lw t" << last_reg << ", 0(t" << last_reg << ")\n"; 
+        out << "    la s" << last_reg << ", " << &(load.src->name[1]) << endl;
+        out << "    lw s" << last_reg << ", 0(s" << last_reg << ")\n"; 
     }
     else {
         int pos = stackFrame.find(ptr);
@@ -331,17 +331,17 @@ void visit(ofstream &out, const koopa_raw_load_t &load, StackFrame &stackFrame) 
                     pos -= 2047;
                 }
                 last_reg = newReg();
-                out << "    lw t" << last_reg << ", " << pos << "(t6)\n";
+                out << "    lw s" << last_reg << ", " << pos << "(t6)\n";
             }
             else {
                 last_reg = newReg();
-                out << "    lw t" << last_reg << ", " << pos << "(sp)\n";
+                out << "    lw s" << last_reg << ", " << pos << "(sp)\n";
             }
         }
         else {
             string regd = getReg(out, load.src, stackFrame);
             last_reg = newReg();
-            out << "    lw t" << last_reg << ", " << "0(" << regd << ")\n";
+            out << "    lw s" << last_reg << ", " << "0(" << regd << ")\n";
         }
     }
 }
@@ -369,7 +369,7 @@ void visit(ofstream &out, const koopa_raw_store_t &store, StackFrame &stackFrame
             else if(p->kind.tag == KOOPA_RVT_INTEGER) {
                 int value = p->kind.data.integer.value;
                 int r = newReg();
-                out << "    li t" << r << ", " << value << endl;
+                out << "    li s" << r << ", " << value << endl;
                 int pos = origin + bias;
                 if(pos >= 2048) {
                     out << "    addi t6, sp, 2047\n";
@@ -378,10 +378,10 @@ void visit(ofstream &out, const koopa_raw_store_t &store, StackFrame &stackFrame
                         out << "    addi t6, t6, 2047\n";
                         pos -= 2047;
                     }
-                    out << "    sw t" << r << ", " << pos << "(t6)\n";
+                    out << "    sw s" << r << ", " << pos << "(t6)\n";
                 }
                 else {
-                    out << "    sw t" << r << ", " << pos << "(sp)\n";
+                    out << "    sw s" << r << ", " << pos << "(sp)\n";
                 }
                 bias += 4;
                 reg[r] = false;
@@ -395,11 +395,11 @@ void visit(ofstream &out, const koopa_raw_store_t &store, StackFrame &stackFrame
         string regv = getReg(out, value, stackFrame, false);
         if(dest->kind.tag == KOOPA_RVT_GLOBAL_ALLOC) {
             int r = newReg();
-            out << "    la t" << r << ", " << &(dest->name[1]) << endl;
-            out << "    sw " << regv << ", 0(t" << r << ")\n"; 
+            out << "    la s" << r << ", " << &(dest->name[1]) << endl;
+            out << "    sw " << regv << ", 0(s" << r << ")\n"; 
             reg[r] = false;
-            if(regv[0] == 't') {
-                reg[regv[1]-'0'] = false;
+            if(regv[0] == 's') {
+                reg[atoi(regv.c_str() + 1)] = false;
             }
         }
         else {
@@ -417,15 +417,15 @@ void visit(ofstream &out, const koopa_raw_store_t &store, StackFrame &stackFrame
                 else {
                     out << "    sw " << regv << ", " << pos << "(sp)\n";
                 }
-                if(regv[0] == 't') {
+                if(regv[0] == 's') {
                 }
-                    reg[regv[1]-'0'] = false;
+                    reg[atoi(regv.c_str() + 1)] = false;
             }
             else {
                 string regd = getReg(out, dest, stackFrame);
                 out << "    sw " << regv << ", " << "0(" << regd << ")\n";
-                if(regv[0] == 't') {
-                    reg[regv[1]-'0'] = false;
+                if(regv[0] == 's') {
+                    reg[atoi(regv.c_str() + 1)] = false;
                 }
             }
         }
@@ -443,13 +443,13 @@ void visit(ofstream &out, const koopa_raw_branch_t &branch, StackFrame &stackFra
     if(regc[0] == 'a') {
         int r;
         r = newReg();
-        out << "    mv t" << r << ", " << regc << endl;
-        regc = "t" + to_string(r);
+        out << "    mv s" << r << ", " << regc << endl;
+        regc = "s" + to_string(r);
     }
     visitParams(out, true_args, stackFrame);
     out << "    bnez " << regc << ", j" << current_func << "_" << &(true_bb->name[1]) << endl;
-    if(regc[0] == 't') {
-        reg[regc[1]-'0'] = false;
+    if(regc[0] == 's') {
+        reg[atoi(regc.c_str() + 1)] = false;
     }
     visitParams(out, false_args, stackFrame);
     out << "    j " << current_func << "_" << &(false_bb->name[1]) << endl;
@@ -490,35 +490,35 @@ void visit(ofstream &out, const koopa_raw_get_elem_ptr_t &getelem, StackFrame &s
     auto ty = src->ty->data.pointer.base->data.array.base;
     int bias = getArraySize(ty);
     int r = newReg();
-    out << "    li t" << r << ", " << bias << endl;
+    out << "    li s" << r << ", " << bias << endl;
     string regi = getReg(out, index, stackFrame);
-    string regb = "t" + to_string(r);
-    out << "    mul " << regb << ", t" << r << ", " << regi << endl;
-    if(regi[0] == 't')
-        reg[regi[1]-'0'] = false;
+    string regb = "s" + to_string(r);
+    out << "    mul " << regb << ", s" << r << ", " << regi << endl;
+    if(regi[0] == 's')
+        reg[atoi(regi.c_str() + 1)] = false;
     if(src->kind.tag == KOOPA_RVT_GLOBAL_ALLOC) {
         int nr = newReg();
-        out << "    la t" << nr << ", " << &(src->name[1]) << endl;
-        out << "    add t" << r << ", t" << nr << ", " << regb << endl;
+        out << "    la s" << nr << ", " << &(src->name[1]) << endl;
+        out << "    add s" << r << ", s" << nr << ", " << regb << endl;
         reg[nr] = false;
     }
     else {
         int origin = stackFrame.find((void *)&src->kind);
         if(origin == -1) {
             string regs= getReg(out, src, stackFrame);
-            out << "    add t" << r<< ", " << regs << ", " << regb << endl;
+            out << "    add s" << r<< ", " << regs << ", " << regb << endl;
         }
         else if(src->kind.tag == KOOPA_RVT_ALLOC){
-            out << "    add t" << r << ", sp" << ", " << regb << endl;
+            out << "    add s" << r << ", sp" << ", " << regb << endl;
             while(origin >= 2048) {
-                out << "    addi t" << r << ", t" << r << ", " << 2047 << endl;
+                out << "    addi s" << r << ", s" << r << ", " << 2047 << endl;
                 origin -= 2047;
             }
-            out << "    addi t" << r << ", t" << r << ", " << origin << endl;
+            out << "    addi s" << r << ", s" << r << ", " << origin << endl;
         }
         else {
             string regs = getReg(out, src, stackFrame);
-            out << "    add t" << r << ", " << regs << ", " << regb << endl;
+            out << "    add s" << r << ", " << regs << ", " << regb << endl;
         }
     }
     last_reg = r;
@@ -531,35 +531,35 @@ void visit(ofstream &out, const koopa_raw_get_ptr_t &getptr, StackFrame &stackFr
     auto ty = src->ty->data.pointer.base;
     int bias = getArraySize(ty);
     int r = newReg();
-    out << "    li t" << r << ", " << bias << endl;
+    out << "    li s" << r << ", " << bias << endl;
     string regi = getReg(out, index, stackFrame);
-    string regb = "t" + to_string(r);
-    out << "    mul " << regb << ", t" << r << ", " << regi << endl;
-    if(regi[0] == 't')
-        reg[regi[1]-'0'] = false;
+    string regb = "s" + to_string(r);
+    out << "    mul " << regb << ", s" << r << ", " << regi << endl;
+    if(regi[0] == 's')
+        reg[atoi(regi.c_str() + 1)] = false;
     if(src->kind.tag == KOOPA_RVT_GLOBAL_ALLOC) {
         int nr = newReg();
-        out << "    la t" << nr << ", " << &(src->name[1]) << endl;
-        out << "    add t" << r << ", t" << nr << ", " << regb << endl;
+        out << "    la s" << nr << ", " << &(src->name[1]) << endl;
+        out << "    add s" << r << ", s" << nr << ", " << regb << endl;
         reg[nr] = false;
     }
     else {
         int origin = stackFrame.find((void *)&src->kind);
         if(origin == -1) {
             string regs= getReg(out, src, stackFrame);
-            out << "    add t" << r<< ", " << regs << ", " << regb << endl;
+            out << "    add s" << r<< ", " << regs << ", " << regb << endl;
         }
         else if(src->kind.tag == KOOPA_RVT_ALLOC){
-            out << "    add t" << r << ", sp" << ", " << regb << endl;
+            out << "    add s" << r << ", sp" << ", " << regb << endl;
             while(origin >= 2048) {
-                out << "    addi t" << r << ", t" << r << ", " << 2047 << endl;
+                out << "    addi s" << r << ", s" << r << ", " << 2047 << endl;
                 origin -= 2047;
             }
-            out << "    addi t" << r << ", t" << r << ", " << origin << endl;
+            out << "    addi s" << r << ", s" << r << ", " << origin << endl;
         }
         else {
             string regs = getReg(out, src, stackFrame);
-            out << "    add t" << r << ", " << regs << ", " << regb << endl;
+            out << "    add s" << r << ", " << regs << ", " << regb << endl;
         }
     }
     last_reg = r;
@@ -673,7 +673,7 @@ string getReg(ofstream &out, const koopa_raw_value_t &value, StackFrame &stackFr
             regv = "x0";
         }
         else {
-            regv = "t" + to_string(last_reg);
+            regv = "s" + to_string(last_reg);
         }
     }
     else if (((
@@ -683,7 +683,7 @@ string getReg(ofstream &out, const koopa_raw_value_t &value, StackFrame &stackFr
         ) || spill.find(value) != spill.end()){
         void *ptr = (void *)&value->kind;
         last_reg = newReg();
-        regv = "t" + to_string(last_reg);
+        regv = "s" + to_string(last_reg);
         int pos = stackFrame.find(ptr);
         if(pos >= 2048) {
             out << "    addi t6, sp, 2047\n";
@@ -706,7 +706,7 @@ string getReg(ofstream &out, const koopa_raw_value_t &value, StackFrame &stackFr
         
         if(value->used_by.len <= used_time[ptr] && checkNum) {
             registers.erase(ptr);
-            reg[regv[1]-'0'] = false;
+            reg[atoi(regv.c_str() + 1)] = false;
         }
     }
     else {
@@ -722,7 +722,7 @@ string getReg(ofstream &out, const koopa_raw_value_t &value, StackFrame &stackFr
             
             if(value->used_by.len <= used_time[ptr] && checkNum) {
                 registers.erase(ptr);
-                reg[regv[1]-'0'] = false;
+                reg[atoi(regv.c_str() + 1)] = false;
             }
         }
     }
@@ -731,13 +731,13 @@ string getReg(ofstream &out, const koopa_raw_value_t &value, StackFrame &stackFr
 }
 
 int newReg() {
-    for(int i = 0; i < 6; i++) {
+    for(int i = 0; i < 11; i++) {
         if(!reg[i]) {
             reg[i] = true;
             return i;
         }
     }
-    return 6;
+    return 11;
 }
 
 void visitParams(ofstream &out, const koopa_raw_slice_t &params, StackFrame &stackFrame) {
@@ -750,8 +750,8 @@ void visitParams(ofstream &out, const koopa_raw_slice_t &params, StackFrame &sta
             auto r = registers.find(ptr);
             if(r != registers.end() && r->second[0] == 'a') {
                 last_reg = newReg();
-                out << "    mv t" << last_reg << ", " << r->second << endl;
-                registers[ptr] = "t" + to_string(last_reg);
+                out << "    mv s" << last_reg << ", " << r->second << endl;
+                registers[ptr] = "s" + to_string(last_reg);
             }
         }
     }
@@ -765,8 +765,8 @@ void visitParams(ofstream &out, const koopa_raw_slice_t &params, StackFrame &sta
             default:
                 string s = getReg(out, ptr, stackFrame);
                 out << "    mv a" << i << ", " << s << endl;
-                if(s[0] == 't') {
-                    reg[s[1]-'0'] = false;
+                if(s[0] == 's') {
+                    reg[atoi(s.c_str() + 1)] = false;
                 }
                 break;
             }
@@ -786,8 +786,8 @@ void visitParams(ofstream &out, const koopa_raw_slice_t &params, StackFrame &sta
             else {
                 out << "    sw " << s << ", " << pos << "(sp)\n";
             }
-            if(s[0] == 't') {
-                reg[s[1] - '0'] = false;
+            if(s[0] == 's') {
+                reg[atoi(s.c_str() + 1)] = false;
             }
         }
     }
@@ -1042,7 +1042,7 @@ void preprocess(const koopa_raw_slice_t &bbs, StackFrame &stackFrame) {
             //auto inst = (koopa_raw_value_data_t *)block->insts.buffer[j];
             active.insert(extra_def[j].begin(), extra_def[j].end());
 
-            while(active.size() > 6) {
+            while(active.size() > 11) {
                 auto spill_value = active.begin();
                 for(auto k = active.begin(); k != active.end(); k++) {
                     if(end[*k] > end[*spill_value]) {
